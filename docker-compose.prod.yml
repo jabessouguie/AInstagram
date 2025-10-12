@@ -1,0 +1,72 @@
+# Docker Compose - Configuration de production
+
+version: '3.8'
+
+services:
+  instagram-analytics:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    image: instagram-analytics:latest
+    container_name: instagram-analytics-prod
+    ports:
+      - "80:8501"
+    volumes:
+      - instagram-data:/app/instagram_data
+      - instagram-cache:/app/.cache
+      - instagram-logs:/app/logs
+    environment:
+      - ENVIRONMENT=production
+      - DEBUG=false
+      - STREAMLIT_SERVER_RUN_ON_SAVE=false
+      - LOG_LEVEL=INFO
+    restart: always
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+        reservations:
+          cpus: '1.0'
+          memory: 2G
+    networks:
+      - instagram-prod-net
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Reverse proxy nginx (optionnel)
+  nginx:
+    image: nginx:alpine
+    container_name: instagram-nginx
+    ports:
+      - "443:443"
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - instagram-analytics
+    restart: always
+    networks:
+      - instagram-prod-net
+
+volumes:
+  instagram-data:
+    driver: local
+  instagram-cache:
+    driver: local
+  instagram-logs:
+    driver: local
+
+networks:
+  instagram-prod-net:
+    driver: bridge

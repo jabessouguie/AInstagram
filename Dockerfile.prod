@@ -1,0 +1,70 @@
+# Dockerfile optimisé pour production
+# Multi-stage build pour réduire la taille de l'image
+
+FROM python:3.9-slim as builder
+
+WORKDIR /build
+
+# Copier uniquement requirements pour le cache
+COPY requirements.txt .
+
+# Installer les dépendances dans un environnement virtuel
+RUN python -m venv /opt/venv && \
+    /opt/venv/bin/pip install --no-cache-dir -r requirements.txt
+
+# Stage final
+FROM python:3.9-slim
+
+# Variables d'environnement optimisées
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PATH="/opt/venv/bin:$PATH" \
+    STREAMLIT_SERVER_PORT=8501 \
+    STREAMLIT_SERVER_ADDRESS=0.0.0.0 \
+    STREAMLIT_SERVER_HEADLESS=true \
+    STREAMLIT_BROWSER_GATHER_USAGE_STATS=false \
+    STREAMLIT_SERVER_MAX_UPLOAD_SIZE=1000 \
+    STREAMLIT_SERVER_ENABLE_CORS=false \
+    STREAMLIT_SERVER_ENABLE_XSRF_PROTECTION=true
+
+# Installer uniquement les dépendances runtime nécessaires
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Créer utilisateur non-root avec UID/GID fixes
+RUN groupadd -g 1000 appuser && \
+    useradd -r -u 1000 -g appuser appuser && \
+    mkdir -p /app /app/.cache /app/instagram_data /app/logs && \
+    chown -R appuser:appuser /app
+
+WORKDIR /app
+
+# Copier le venv depuis le builder
+COPY --from=builder /opt/venv /opt/venv
+
+# Copier l'application
+COPY --chown=appuser:appuser . .
+
+# Changer vers l'utilisateur non-root
+USER appuser
+
+# Exposer le port
+EXPOSE 8501
+
+# Health check amélioré
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -sf http://localhost:8501/_stcore/health || exit 1
+
+# Point de montage pour les données
+VOLUME ["/app/instagram_data", "/app/.cache", "/app/logs"]
+
+# Commande de démarrage
+ENTRYPOINT ["streamlit", "run"]
+CMD ["dashboard.py", \
+     "--server.port=8501", \
+     "--server.address=0.0.0.0", \
+     "--server.maxUploadSize=1000", \
+     "--browser.gatherUsageStats=false", \
+     "--server.enableCORS=false", \
+     "--server.enableXsrfProtection=true"]
