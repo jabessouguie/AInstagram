@@ -152,10 +152,8 @@ export default function CreatorDashboard() {
             {/* Top posts */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-base font-semibold">
-                  Top 10 posts par engagement
-                </CardTitle>
-                <CardDescription>Posts avec le plus de likes + commentaires</CardDescription>
+                <CardTitle className="text-base font-semibold">10 derniers posts</CardTitle>
+                <CardDescription>Posts les plus récents (hors stories)</CardDescription>
               </CardHeader>
               <CardContent>
                 {isLoading ? (

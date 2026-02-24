@@ -47,13 +47,16 @@ function findExportFolder(): string | null {
 
 // ─── HTML parser helpers ──────────────────────────────────────────────────────
 
-/** Parse an ISO-8601 or relative timestamp string into a Date */
+/** Parse an ISO-8601 or relative timestamp string into a Date.
+ *  Returns new Date(0) (epoch) when the string is empty or invalid,
+ *  so callers can detect "no timestamp available". */
 function parseTimestamp(raw: string): Date {
   const trimmed = raw.trim();
+  if (!trimmed) return new Date(0);
   if (trimmed.includes("T")) return new Date(trimmed);
   const d = new Date(trimmed);
   if (!isNaN(d.getTime())) return d;
-  return new Date();
+  return new Date(0);
 }
 
 /** Read an HTML file and return a cheerio root */
@@ -384,6 +387,8 @@ function computeFollowerGrowth(followers: InstagramFollower[]): FollowerGrowthPo
   const byMonth = new Map<string, number>();
 
   for (const f of followers) {
+    // Skip entries with no reliable timestamp (epoch = parse failure fallback)
+    if (f.followedAt.getTime() === 0) continue;
     const key = `${f.followedAt.getFullYear()}-${String(f.followedAt.getMonth() + 1).padStart(2, "0")}`;
     byMonth.set(key, (byMonth.get(key) ?? 0) + 1);
   }
@@ -397,35 +402,29 @@ function computeFollowerGrowth(followers: InstagramFollower[]): FollowerGrowthPo
 }
 
 function computePostingTimes(posts: InstagramPost[]) {
-  const byDay = new Map<string, number[]>();
-  const byHour = new Map<number, number[]>();
+  // The Instagram HTML export does not include per-post likes/comments,
+  // so we compute posting frequency (count) per day/hour instead.
+  // This tells the creator when they publish most, which is the best
+  // proxy for "active slots" derivable from export data alone.
+  const byDay = new Map<string, number>();
+  const byHour = new Map<number, number>();
 
   const DAYS = ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
 
   for (const post of posts) {
+    if (post.mediaType === "STORY") continue; // exclude ephemeral content
     const day = DAYS[post.timestamp.getDay()];
     const hour = post.timestamp.getHours();
-    const engagement = post.likes + post.comments;
-
-    if (!byDay.has(day)) byDay.set(day, []);
-    byDay.get(day)!.push(engagement);
-
-    if (!byHour.has(hour)) byHour.set(hour, []);
-    byHour.get(hour)!.push(engagement);
+    byDay.set(day, (byDay.get(day) ?? 0) + 1);
+    byHour.set(hour, (byHour.get(hour) ?? 0) + 1);
   }
 
   const bestDays = [...byDay.entries()]
-    .map(([day, engagements]) => ({
-      day,
-      avgEngagement: engagements.reduce((a, b) => a + b, 0) / engagements.length,
-    }))
+    .map(([day, count]) => ({ day, avgEngagement: count }))
     .sort((a, b) => b.avgEngagement - a.avgEngagement);
 
   const bestHours = [...byHour.entries()]
-    .map(([hour, engagements]) => ({
-      hour,
-      avgEngagement: engagements.reduce((a, b) => a + b, 0) / engagements.length,
-    }))
+    .map(([hour, count]) => ({ hour, avgEngagement: count }))
     .sort((a, b) => b.avgEngagement - a.avgEngagement);
 
   return { bestDays, bestHours };
@@ -592,8 +591,15 @@ function computeMetrics(
   const { bestDays, bestHours } = computePostingTimes(posts);
   const contentPerf = computeContentPerformance(posts, contentInteractions, followerCount);
 
+  // Per-post likes/comments are not available in the HTML export.
+  // Sort by most recent timestamp as a meaningful fallback.
   const topPosts = [...posts]
-    .sort((a, b) => b.likes + b.comments - (a.likes + a.comments))
+    .filter((p) => p.mediaType !== "STORY")
+    .sort((a, b) => {
+      const engDiff = b.likes + b.comments - (a.likes + a.comments);
+      if (engDiff !== 0) return engDiff;
+      return b.timestamp.getTime() - a.timestamp.getTime();
+    })
     .slice(0, 10);
 
   return {

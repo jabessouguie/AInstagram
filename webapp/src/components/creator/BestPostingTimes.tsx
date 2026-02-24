@@ -39,8 +39,8 @@ export function BestPostingTimes({ days, hours, isLoading }: BestPostingTimesPro
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base font-semibold">Meilleurs moments de publication</CardTitle>
-        <CardDescription>Par engagement moyen (likes + commentaires)</CardDescription>
+        <CardTitle className="text-base font-semibold">Moments de publication</CardTitle>
+        <CardDescription>Fréquence de publication par créneau</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
         {/* Days */}
