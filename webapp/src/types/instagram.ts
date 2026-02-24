@@ -62,6 +62,64 @@ export interface ContentTypePerformance {
   engagementRate: number;
 }
 
+// ============================================================
+// Instagram Insights Types (from past_instagram_insights/)
+// ============================================================
+
+export interface AudienceInsights {
+  period: string;
+  followerCount: number;
+  followerCountChange: string;
+  followersGained: number;
+  followersLost: number;
+  netFollowerChange: number;
+  topCities: Record<string, number>;
+  topCountries: Record<string, number>;
+  ageGroups: Record<string, number>;
+  genderSplit: { male: number; female: number };
+  dailyActivity: Record<string, number>;
+}
+
+export interface ContentInteractions {
+  period: string;
+  totalInteractions: number;
+  totalInteractionsChange: string;
+  posts: {
+    interactions: number;
+    likes: number;
+    comments: number;
+    shares: number;
+    saves: number;
+  };
+  stories: {
+    interactions: number;
+    replies: number;
+  };
+  reels: {
+    interactions: number;
+    likes: number;
+    comments: number;
+    shares: number;
+    saves: number;
+  };
+  accountsInteracted: number;
+  accountsInteractedChange: string;
+  nonFollowerInteractionPct: number;
+}
+
+export interface ReachInsights {
+  period: string;
+  accountsReached: number;
+  accountsReachedChange: string;
+  followerReachPct: number;
+  nonFollowerReachPct: number;
+  impressions: number;
+  impressionsChange: string;
+  profileVisits: number;
+  profileVisitsChange: string;
+  externalLinkTaps: number;
+}
+
 export interface InstagramMetrics {
   engagementRate: number;
   avgLikesPerPost: number;
@@ -84,6 +142,9 @@ export interface InstagramAnalytics {
   following: InstagramFollower[];
   posts: InstagramPost[];
   metrics: InstagramMetrics;
+  audienceInsights?: AudienceInsights;
+  contentInteractions?: ContentInteractions;
+  reachInsights?: ReachInsights;
   parsedAt: Date;
   dataSource: "export" | "api" | "mock";
 }

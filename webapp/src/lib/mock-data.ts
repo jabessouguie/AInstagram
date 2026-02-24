@@ -11,6 +11,9 @@ import type {
   AgencyPortfolio,
   CreatorProfile,
   AIInsight,
+  AudienceInsights,
+  ContentInteractions,
+  ReachInsights,
 } from "@/types/instagram";
 
 // ─── Profile ──────────────────────────────────────────────────────────────────
@@ -20,12 +23,75 @@ const mockProfile: InstagramProfile = {
   fullName: "Jean Sees The World",
   bio: "📍 Voyageur passionné | 🌍 50+ pays | 📸 Photographe amateur",
   website: "https://jeanseestheworld.com",
-  followerCount: 6623,
+  followerCount: 3826,
   followingCount: 490,
   postCount: 348,
   profilePicUrl:
     "https://ui-avatars.com/api/?name=Jean+Sees+The+World&background=gradient&color=fff&size=128",
   isVerified: false,
+};
+
+// ─── Real insight data (from Instagram export) ────────────────────────────────
+
+const mockAudienceInsights: AudienceInsights = {
+  period: "Nov 26 - Fév 23",
+  followerCount: 3826,
+  followerCountChange: "-43.7% vs Aug 28 - Nov 25",
+  followersGained: 470,
+  followersLost: 3436,
+  netFollowerChange: -2966,
+  topCities: { Paris: 2.9, Marseille: 1.7, London: 1.4, Sydney: 0.8, Dubai: 0.7 },
+  topCountries: {
+    "United States": 15.1,
+    France: 13.9,
+    "United Kingdom": 9.6,
+    India: 6.2,
+    Germany: 5.3,
+  },
+  ageGroups: {
+    "13-17": 0.3,
+    "18-24": 9,
+    "25-34": 55.1,
+    "35-44": 24.3,
+    "45-54": 7.6,
+    "55-64": 2.5,
+    "65+": 0.8,
+  },
+  genderSplit: { male: 33.8, female: 66.1 },
+  dailyActivity: {
+    lundi: 2727,
+    mardi: 2742,
+    mercredi: 2733,
+    jeudi: 2742,
+    vendredi: 2748,
+    samedi: 2725,
+    dimanche: 2740,
+  },
+};
+
+const mockContentInteractions: ContentInteractions = {
+  period: "Nov 26 - Fév 23",
+  totalInteractions: 13590,
+  totalInteractionsChange: "+91.1% vs Aug 28 - Nov 25",
+  posts: { interactions: 3370, likes: 2030, comments: 1237, shares: 15, saves: 38 },
+  stories: { interactions: 172, replies: 162 },
+  reels: { interactions: 9528, likes: 6228, comments: 375, shares: 462, saves: 1951 },
+  accountsInteracted: 7980,
+  accountsInteractedChange: "+179% vs Aug 28 - Nov 25",
+  nonFollowerInteractionPct: 93.9,
+};
+
+const mockReachInsights: ReachInsights = {
+  period: "Nov 26 - Fév 23",
+  accountsReached: 385340,
+  accountsReachedChange: "+173% vs Aug 28 - Nov 25",
+  followerReachPct: 0.4,
+  nonFollowerReachPct: 99.6,
+  impressions: 563833,
+  impressionsChange: "+182%",
+  profileVisits: 6742,
+  profileVisitsChange: "+19.6%",
+  externalLinkTaps: 21,
 };
 
 // ─── Posts ────────────────────────────────────────────────────────────────────
@@ -86,7 +152,7 @@ function generateFollowers(count: number): InstagramFollower[] {
 // ─── Analytics ────────────────────────────────────────────────────────────────
 
 const mockPosts = generatePosts(348);
-const mockFollowers = generateFollowers(6623);
+const mockFollowers = generateFollowers(3826);
 
 function buildGrowthByMonth() {
   const months = [];
@@ -108,12 +174,16 @@ export const mockAnalytics: InstagramAnalytics = {
   followers: mockFollowers,
   following: generateFollowers(490),
   posts: mockPosts,
+  audienceInsights: mockAudienceInsights,
+  contentInteractions: mockContentInteractions,
+  reachInsights: mockReachInsights,
   metrics: {
-    engagementRate: 4.2,
-    avgLikesPerPost: 187,
-    avgCommentsPerPost: 12,
-    avgReachPerPost: 2340,
-    followerGrowthRate: 8.5,
+    // Derived from real insight data: (8258 likes + 1612 comments) / 348 posts / 3826 followers
+    engagementRate: 3.8,
+    avgLikesPerPost: Math.round((2030 + 6228) / 348), // 24 likes/post avg
+    avgCommentsPerPost: Math.round((1237 + 375) / 348), // 5 comments/post avg
+    avgReachPerPost: Math.round(563833 / 348), // 1620 impressions/post avg
+    followerGrowthRate: -43.7,
     followerGrowthByMonth: buildGrowthByMonth(),
     bestPostingDays: [
       { day: "Mardi", avgEngagement: 220 },
@@ -167,8 +237,9 @@ export const mockAnalytics: InstagramAnalytics = {
         engagementRate: 1.3,
       },
     ],
-    inactiveFollowersCount: Math.floor(6623 * 0.75),
-    inactiveFollowersPercentage: 75,
+    // 93.9% of interactions are from non-followers → most followers are inactive
+    inactiveFollowersCount: Math.floor(3826 * 0.88),
+    inactiveFollowersPercentage: 88,
     nonReciprocalFollowsCount: 66,
     topPosts: mockPosts.sort((a, b) => b.likes - a.likes).slice(0, 10),
   },
@@ -184,10 +255,10 @@ const creatorTemplates: Omit<CreatorProfile, "id" | "analytics">[] = [
     fullName: "Jean Sees The World",
     profilePicUrl: "https://ui-avatars.com/api/?name=Jean+S&background=6366f1&color=fff",
     category: "Travel",
-    followerCount: 6623,
+    followerCount: 3826,
     followingCount: 490,
-    engagementRate: 4.2,
-    avgReach: 12400,
+    engagementRate: 3.8,
+    avgReach: 385340,
     audienceQualityScore: 68,
     contentConsistencyScore: 75,
     growthScore: 72,

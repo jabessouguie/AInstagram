@@ -5,6 +5,7 @@
  */
 
 import * as cheerio from "cheerio";
+import type { AnyNode } from "domhandler";
 import fs from "fs";
 import path from "path";
 import type {
@@ -16,6 +17,9 @@ import type {
   FollowerGrowthPoint,
   ContentTypePerformance,
   MediaType,
+  AudienceInsights,
+  ContentInteractions,
+  ReachInsights,
 } from "@/types/instagram";
 
 // ─── Path helpers ────────────────────────────────────────────────────────────
@@ -46,9 +50,7 @@ function findExportFolder(): string | null {
 /** Parse an ISO-8601 or relative timestamp string into a Date */
 function parseTimestamp(raw: string): Date {
   const trimmed = raw.trim();
-  // ISO format: 2024-01-15T12:00:00+00:00
   if (trimmed.includes("T")) return new Date(trimmed);
-  // Instagram sometimes uses: Jan 15, 2024
   const d = new Date(trimmed);
   if (!isNaN(d.getTime())) return d;
   return new Date();
@@ -61,6 +63,165 @@ function loadHtml(filePath: string): cheerio.CheerioAPI | null {
   return cheerio.load(html);
 }
 
+// ─── Insight table parser helpers ─────────────────────────────────────────────
+
+/**
+ * Parses the recurring Instagram insights HTML table structure:
+ *   <td class="_2pin _a6_q">Label<div><div>Value</div></div></td>
+ * Returns a Map<label, value>.
+ */
+function parseInsightTable(exportFolder: string, relativePath: string): Map<string, string> {
+  const filePath = path.join(exportFolder, relativePath);
+  const $ = loadHtml(filePath);
+  if (!$) return new Map();
+
+  const map = new Map<string, string>();
+
+  $("table tr").each((_, tr) => {
+    const $td = $(tr).find("td");
+    if (!$td.length) return;
+
+    // Label = direct text node (clone the td, remove all child elements)
+    const $clone = $td.clone();
+    $clone.find("*").remove();
+    const label = $clone.text().trim();
+
+    // Value = innermost div text
+    const value = $td.find("div > div").first().text().trim();
+
+    if (label && value) map.set(label, value);
+  });
+
+  return map;
+}
+
+/** Parse a number string like "3,826" or "385340" or "-2,966" */
+function parseNum(s: string): number {
+  const cleaned = s.replace(/[,\s]/g, "");
+  return parseInt(cleaned, 10) || 0;
+}
+
+/** Extract the first float from a string like "2.9%" or "-43.7% vs..." */
+function parsePct(s: string): number {
+  const m = s.match(/-?([\d.]+)/);
+  return m ? parseFloat(m[1]) : 0;
+}
+
+/**
+ * Parse a "Key: val%, Key2: val2%" string into a Record.
+ * Handles keys with hyphens (e.g. "Non-followers") and values without % sign.
+ */
+function parseKVPcts(s: string): Record<string, number> {
+  const result: Record<string, number> = {};
+  // Match "Anything: 12.3%" patterns
+  const re = /([^,:%]+):\s*([\d.]+)%?/g;
+  let m;
+  while ((m = re.exec(s)) !== null) {
+    const key = m[1].trim();
+    const val = parseFloat(m[2]);
+    if (key) result[key] = val;
+  }
+  return result;
+}
+
+// ─── Insight parsers ──────────────────────────────────────────────────────────
+
+function parseAudienceInsights(exportFolder: string): AudienceInsights | null {
+  const map = parseInsightTable(
+    exportFolder,
+    "logged_information/past_instagram_insights/audience_insights.html"
+  );
+  if (!map.size) return null;
+
+  const dailyActivity: Record<string, number> = {};
+  for (const [key, val] of map.entries()) {
+    if (key.startsWith("Activité des followers :")) {
+      const day = key.replace("Activité des followers :", "").trim();
+      dailyActivity[day] = parseNum(val);
+    }
+  }
+
+  return {
+    period: map.get("Période") ?? "",
+    followerCount: parseNum(map.get("Followers") ?? "0"),
+    followerCountChange: map.get("Nombre de followers") ?? "",
+    followersGained: parseNum(map.get("Followers en plus") ?? "0"),
+    followersLost: parseNum(map.get("Followers en moins") ?? "0"),
+    netFollowerChange: parseNum(map.get("Total des followers") ?? "0"),
+    topCities: parseKVPcts(map.get("Pourcentage de followers en fonction de la ville") ?? ""),
+    topCountries: parseKVPcts(map.get("Pourcentage de followers en fonction du pays") ?? ""),
+    ageGroups: parseKVPcts(
+      map.get("Pourcentage de followers en fonction de l'âge pour tous les genres") ?? ""
+    ),
+    genderSplit: {
+      male: parsePct(map.get("Pourcentage du total des followers hommes") ?? "0"),
+      female: parsePct(map.get("Pourcentage du total des de followers femmes") ?? "0"),
+    },
+    dailyActivity,
+  };
+}
+
+function parseContentInteractions(exportFolder: string): ContentInteractions | null {
+  const map = parseInsightTable(
+    exportFolder,
+    "logged_information/past_instagram_insights/content_interactions.html"
+  );
+  if (!map.size) return null;
+
+  const interactionPcts = parseKVPcts(
+    map.get("Comptes ayant interagi par type de followers") ?? ""
+  );
+  const nonFollowerPct = interactionPcts["Non-followers"] ?? 0;
+
+  return {
+    period: map.get("Période") ?? "",
+    totalInteractions: parseNum(map.get("Interactions avec le contenu") ?? "0"),
+    totalInteractionsChange: map.get("Nombre d'interactions avec le contenu") ?? "",
+    posts: {
+      interactions: parseNum(map.get("Interactions avec les publications") ?? "0"),
+      likes: parseNum(map.get("Mentions J'aime des publications") ?? "0"),
+      comments: parseNum(map.get("Commentaires sur les publications") ?? "0"),
+      shares: parseNum(map.get("Partages de publications") ?? "0"),
+      saves: parseNum(map.get("Enregistrements de publications") ?? "0"),
+    },
+    stories: {
+      interactions: parseNum(map.get("Interactions avec la story") ?? "0"),
+      replies: parseNum(map.get("Réponses aux stories") ?? "0"),
+    },
+    reels: {
+      interactions: parseNum(map.get("Interactions avec les reels") ?? "0"),
+      likes: parseNum(map.get("Mentions J'aime sur les reels") ?? "0"),
+      comments: parseNum(map.get("Commentaires sur les reels") ?? "0"),
+      shares: parseNum(map.get("Partages des reels") ?? "0"),
+      saves: parseNum(map.get("Enregistrements de reels") ?? "0"),
+    },
+    accountsInteracted: parseNum(map.get("Comptes ayant interagi") ?? "0"),
+    accountsInteractedChange: map.get("Nombre de comptes ayant interagi") ?? "",
+    nonFollowerInteractionPct: nonFollowerPct,
+  };
+}
+
+function parseReachInsights(exportFolder: string): ReachInsights | null {
+  const map = parseInsightTable(
+    exportFolder,
+    "logged_information/past_instagram_insights/profiles_reached.html"
+  );
+  if (!map.size) return null;
+
+  return {
+    period: map.get("Période") ?? "",
+    accountsReached: parseNum(map.get("Comptes touchés") ?? "0"),
+    accountsReachedChange: map.get("Nombre de comptes touchés") ?? "",
+    followerReachPct: parsePct(map.get("Followers") ?? "0"),
+    nonFollowerReachPct: parsePct(map.get("Non-followers") ?? "0"),
+    impressions: parseNum(map.get("Impressions") ?? "0"),
+    impressionsChange: map.get("Nombre d'impressions") ?? "",
+    profileVisits: parseNum(map.get("Visites du profil") ?? "0"),
+    profileVisitsChange: map.get("Nombre de visites sur le profil") ?? "",
+    externalLinkTaps: parseNum(map.get("Appuis sur les liens externes") ?? "0"),
+  };
+}
+
 // ─── Followers & Following ────────────────────────────────────────────────────
 
 function parseFollowerFile(filePath: string): InstagramFollower[] {
@@ -69,8 +230,7 @@ function parseFollowerFile(filePath: string): InstagramFollower[] {
 
   const followers: InstagramFollower[] = [];
 
-  // Instagram export has a <div class="_a6-g"> wrapper with <ul class="_a9-z"> inside
-  $("ul._a9-z li, div[class*='_a706'] li").each((_: number, el: cheerio.Element) => {
+  $("ul._a9-z li, div[class*='_a706'] li").each((_: number, el: AnyNode) => {
     const $el = $(el);
     const username = $el.find("a").first().text().trim() || $el.find("div").first().text().trim();
     const timestampText = $el.find("div[class*='_a72_']").text().trim();
@@ -84,9 +244,8 @@ function parseFollowerFile(filePath: string): InstagramFollower[] {
     });
   });
 
-  // Fallback: look for any <a> inside a list
   if (followers.length === 0) {
-    $("a[href*='instagram.com']").each((_: number, el: cheerio.Element) => {
+    $("a[href*='instagram.com']").each((_: number, el: AnyNode) => {
       const username = $(el).text().trim();
       if (!username || username.length < 2) return;
       followers.push({
@@ -132,7 +291,7 @@ function parsePostsFile(filePath: string, mediaType: MediaType): InstagramPost[]
   const posts: InstagramPost[] = [];
   let idx = 0;
 
-  $("._a706, div[class*='pam']").each((_: number, el: cheerio.Element) => {
+  $("._a706, div[class*='pam']").each((_: number, el: AnyNode) => {
     const $el = $(el);
     const captionEl = $el.find("div._a6-p, ._a6eo").first();
     const caption = captionEl.text().trim();
@@ -191,7 +350,7 @@ function parseProfile(
   let website = "";
 
   if ($) {
-    $("table tr").each((_: number, el: cheerio.Element) => {
+    $("table tr").each((_: number, el: AnyNode) => {
       const $el = $(el);
       const label = $el.find("td").eq(0).text().trim().toLowerCase();
       const value = $el.find("td").eq(1).text().trim();
@@ -202,7 +361,6 @@ function parseProfile(
     });
   }
 
-  // Try to extract from export folder name
   const folderName = path.basename(exportFolder);
   const match = folderName.match(/instagram-([^-]+)-/);
   if (match && username === "unknown") username = match[1];
@@ -273,7 +431,65 @@ function computePostingTimes(posts: InstagramPost[]) {
   return { bestDays, bestHours };
 }
 
-function computeContentPerformance(posts: InstagramPost[]): ContentTypePerformance[] {
+function computeContentPerformance(
+  posts: InstagramPost[],
+  ci: ContentInteractions | null,
+  followerCount: number
+): ContentTypePerformance[] {
+  // If real insight data is available, use it to compute accurate per-type metrics
+  if (ci) {
+    const result: ContentTypePerformance[] = [];
+
+    const reels = posts.filter((p) => p.mediaType === "REEL");
+    const images = posts.filter((p) => p.mediaType === "IMAGE" || p.mediaType === "CAROUSEL");
+
+    if (reels.length > 0 && ci.reels.interactions > 0) {
+      const count = reels.length;
+      const avgLikes = ci.reels.likes / count;
+      const avgComments = ci.reels.comments / count;
+      result.push({
+        type: "REEL",
+        avgEngagement: ci.reels.interactions / count,
+        avgLikes,
+        avgComments,
+        count,
+        engagementRate:
+          followerCount > 0 ? (ci.reels.interactions / count / followerCount) * 100 : 0,
+      });
+    }
+
+    if (images.length > 0 && ci.posts.interactions > 0) {
+      const count = images.length;
+      const avgLikes = ci.posts.likes / count;
+      const avgComments = ci.posts.comments / count;
+      result.push({
+        type: "IMAGE",
+        avgEngagement: ci.posts.interactions / count,
+        avgLikes,
+        avgComments,
+        count,
+        engagementRate:
+          followerCount > 0 ? (ci.posts.interactions / count / followerCount) * 100 : 0,
+      });
+    }
+
+    if (ci.stories.interactions > 0) {
+      const storyCount = posts.filter((p) => p.mediaType === "STORY").length || 1;
+      result.push({
+        type: "STORY",
+        avgEngagement: ci.stories.interactions / storyCount,
+        avgLikes: 0,
+        avgComments: 0,
+        count: storyCount,
+        engagementRate:
+          followerCount > 0 ? (ci.stories.interactions / storyCount / followerCount) * 100 : 0,
+      });
+    }
+
+    if (result.length > 0) return result;
+  }
+
+  // Fallback: compute from raw post data
   const byType = new Map<string, { likes: number[]; comments: number[]; count: number }>();
 
   for (const post of posts) {
@@ -294,7 +510,7 @@ function computeContentPerformance(posts: InstagramPost[]): ContentTypePerforman
       avgLikes,
       avgComments,
       count: data.count,
-      engagementRate: 0, // filled after we know follower count
+      engagementRate: followerCount > 0 ? ((avgLikes + avgComments) / followerCount) * 100 : 0,
     };
   });
 }
@@ -302,16 +518,38 @@ function computeContentPerformance(posts: InstagramPost[]): ContentTypePerforman
 function computeMetrics(
   followers: InstagramFollower[],
   following: InstagramFollower[],
-  posts: InstagramPost[]
+  posts: InstagramPost[],
+  audienceInsights: AudienceInsights | null,
+  contentInteractions: ContentInteractions | null,
+  reachInsights: ReachInsights | null
 ): InstagramMetrics {
-  const followerCount = followers.length;
-  const totalLikes = posts.reduce((a, p) => a + p.likes, 0);
-  const totalComments = posts.reduce((a, p) => a + p.comments, 0);
-  const avgLikes = posts.length > 0 ? totalLikes / posts.length : 0;
-  const avgComments = posts.length > 0 ? totalComments / posts.length : 0;
+  // Use real follower count when available (more accurate than counting HTML entries)
+  const followerCount = audienceInsights?.followerCount ?? followers.length;
+
+  // Compute likes/comments from real data if available
+  let avgLikes: number;
+  let avgComments: number;
+
+  if (contentInteractions && posts.length > 0) {
+    const realLikes = contentInteractions.posts.likes + contentInteractions.reels.likes;
+    const realComments = contentInteractions.posts.comments + contentInteractions.reels.comments;
+    avgLikes = realLikes / posts.length;
+    avgComments = realComments / posts.length;
+  } else {
+    const totalLikes = posts.reduce((a, p) => a + p.likes, 0);
+    const totalComments = posts.reduce((a, p) => a + p.comments, 0);
+    avgLikes = posts.length > 0 ? totalLikes / posts.length : 0;
+    avgComments = posts.length > 0 ? totalComments / posts.length : 0;
+  }
 
   const engagementRate =
     followerCount > 0 && posts.length > 0 ? ((avgLikes + avgComments) / followerCount) * 100 : 0;
+
+  // Avg reach: use real impressions data if available
+  const avgReachPerPost =
+    reachInsights && posts.length > 0
+      ? Math.round(reachInsights.impressions / posts.length)
+      : Math.round(avgLikes * 3.5);
 
   const followingUsernames = new Set(following.map((f) => f.username));
   const followerUsernames = new Set(followers.map((f) => f.username));
@@ -319,15 +557,26 @@ function computeMetrics(
     (u) => !followerUsernames.has(u)
   ).length;
 
-  // Inactive: no data from HTML export, estimate at 75%
-  const inactiveCount = Math.round(followerCount * 0.75);
+  // Inactive follower estimation: 100% - accounts who interacted (followers segment)
+  const inactiveCount = contentInteractions
+    ? Math.round(
+        followerCount - followerCount * (1 - contentInteractions.nonFollowerInteractionPct / 100)
+      )
+    : Math.round(followerCount * 0.75);
+  const inactivePercentage = followerCount > 0 ? (inactiveCount / followerCount) * 100 : 75;
+
+  // Follower growth rate: extract from insight change string if available
+  let followerGrowthRate = 0;
+  if (audienceInsights?.followerCountChange) {
+    const m = audienceInsights.followerCountChange.match(/-?([\d.]+)%/);
+    if (m)
+      followerGrowthRate =
+        parseFloat(m[1]) * (audienceInsights.followerCountChange.startsWith("-") ? -1 : 1);
+  }
 
   const growthByMonth = computeFollowerGrowth(followers);
   const { bestDays, bestHours } = computePostingTimes(posts);
-  const contentPerf = computeContentPerformance(posts).map((c) => ({
-    ...c,
-    engagementRate: followerCount > 0 ? (c.avgEngagement / followerCount) * 100 : 0,
-  }));
+  const contentPerf = computeContentPerformance(posts, contentInteractions, followerCount);
 
   const topPosts = [...posts]
     .sort((a, b) => b.likes + b.comments - (a.likes + a.comments))
@@ -337,14 +586,14 @@ function computeMetrics(
     engagementRate,
     avgLikesPerPost: avgLikes,
     avgCommentsPerPost: avgComments,
-    avgReachPerPost: avgLikes * 3.5, // estimation
-    followerGrowthRate: growthByMonth.length > 1 ? 5.2 : 0, // placeholder
+    avgReachPerPost,
+    followerGrowthRate,
     followerGrowthByMonth: growthByMonth,
     bestPostingDays: bestDays,
     bestPostingHours: bestHours,
     contentTypePerformance: contentPerf,
     inactiveFollowersCount: inactiveCount,
-    inactiveFollowersPercentage: followerCount > 0 ? (inactiveCount / followerCount) * 100 : 0,
+    inactiveFollowersPercentage: inactivePercentage,
     nonReciprocalFollowsCount: nonReciprocalCount,
     topPosts,
   };
@@ -361,6 +610,11 @@ export async function parseInstagramExport(): Promise<InstagramAnalytics | null>
     const following = parseFollowing(exportFolder);
     const posts = parsePosts(exportFolder);
 
+    // Parse real insight data files
+    const audienceInsights = parseAudienceInsights(exportFolder);
+    const contentInteractions = parseContentInteractions(exportFolder);
+    const reachInsights = parseReachInsights(exportFolder);
+
     // Mark mutual follows
     const followerSet = new Set(followers.map((f) => f.username));
     for (const f of following) {
@@ -371,8 +625,18 @@ export async function parseInstagramExport(): Promise<InstagramAnalytics | null>
       f.isFollowingBack = followingSet.has(f.username);
     }
 
-    const profile = parseProfile(exportFolder, followers.length, following.length, posts.length);
-    const metrics = computeMetrics(followers, following, posts);
+    // Use real follower count for profile if insights are available
+    const followerCount = audienceInsights?.followerCount ?? followers.length;
+    const profile = parseProfile(exportFolder, followerCount, following.length, posts.length);
+
+    const metrics = computeMetrics(
+      followers,
+      following,
+      posts,
+      audienceInsights,
+      contentInteractions,
+      reachInsights
+    );
 
     return {
       profile,
@@ -380,6 +644,9 @@ export async function parseInstagramExport(): Promise<InstagramAnalytics | null>
       following,
       posts,
       metrics,
+      audienceInsights: audienceInsights ?? undefined,
+      contentInteractions: contentInteractions ?? undefined,
+      reachInsights: reachInsights ?? undefined,
       parsedAt: new Date(),
       dataSource: "export",
     };

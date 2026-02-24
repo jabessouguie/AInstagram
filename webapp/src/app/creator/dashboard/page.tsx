@@ -1,7 +1,16 @@
 "use client";
 
 import { useMemo } from "react";
-import { Users, TrendingUp, Heart, MessageCircle, Eye, BarChart2 } from "lucide-react";
+import {
+  Users,
+  TrendingUp,
+  Heart,
+  MessageCircle,
+  Eye,
+  BarChart2,
+  Share2,
+  Bookmark,
+} from "lucide-react";
 import { Header } from "@/components/layout/Header";
 import { MetricCard, MetricCardSkeleton } from "@/components/dashboard/MetricCard";
 import { FollowersChart } from "@/components/dashboard/FollowersChart";
@@ -9,6 +18,7 @@ import { EngagementChart } from "@/components/dashboard/EngagementChart";
 import { InsightsPanel } from "@/components/dashboard/InsightsPanel";
 import { BestPostingTimes } from "@/components/creator/BestPostingTimes";
 import { AudienceQuality } from "@/components/creator/AudienceQuality";
+import { AudienceDemographics } from "@/components/creator/AudienceDemographics";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -202,38 +212,97 @@ export default function CreatorDashboard() {
 
           {/* ── Audience Tab ── */}
           <TabsContent value="audience" className="space-y-6">
-            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {/* Reach KPIs */}
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {isLoading ? (
-                Array.from({ length: 3 }).map((_, i) => <MetricCardSkeleton key={i} />)
+                Array.from({ length: 4 }).map((_, i) => <MetricCardSkeleton key={i} />)
               ) : (
                 <>
                   <MetricCard
-                    title="Abonnements actifs"
-                    value={data?.profile.followingCount ?? 0}
-                    icon={Users}
-                    format="number"
-                    iconColor="text-blue-400"
-                    iconBg="bg-blue-500/10"
-                  />
-                  <MetricCard
-                    title="Portée moyenne/post"
-                    value={Math.round(data?.metrics.avgReachPerPost ?? 0)}
+                    title="Comptes touchés"
+                    value={
+                      data?.reachInsights?.accountsReached ??
+                      Math.round(data?.metrics.avgReachPerPost ?? 0)
+                    }
+                    change={data?.reachInsights ? 173 : undefined}
+                    description="vs période précédente"
                     icon={Eye}
                     format="number"
                     iconColor="text-cyan-400"
                     iconBg="bg-cyan-500/10"
                   />
                   <MetricCard
-                    title="Posts analysés"
-                    value={data?.profile.postCount ?? 0}
+                    title="Impressions"
+                    value={data?.reachInsights?.impressions ?? 0}
+                    change={data?.reachInsights ? 182 : undefined}
+                    description="vs période précédente"
                     icon={BarChart2}
                     format="number"
-                    iconColor="text-indigo-400"
-                    iconBg="bg-indigo-500/10"
+                    iconColor="text-violet-400"
+                    iconBg="bg-violet-500/10"
+                  />
+                  <MetricCard
+                    title="Visites du profil"
+                    value={data?.reachInsights?.profileVisits ?? 0}
+                    change={data?.reachInsights ? 19.6 : undefined}
+                    description="vs période précédente"
+                    icon={Users}
+                    format="number"
+                    iconColor="text-emerald-400"
+                    iconBg="bg-emerald-500/10"
+                  />
+                  <MetricCard
+                    title="Comptes interagis"
+                    value={data?.contentInteractions?.accountsInteracted ?? 0}
+                    change={data?.contentInteractions ? 179 : undefined}
+                    description={`${data?.contentInteractions?.nonFollowerInteractionPct ?? 0}% non-abonnés`}
+                    icon={Share2}
+                    format="number"
+                    iconColor="text-pink-400"
+                    iconBg="bg-pink-500/10"
                   />
                 </>
               )}
             </div>
+
+            {/* Interaction breakdown by type */}
+            {(data?.contentInteractions || isLoading) && (
+              <div className="grid gap-4 sm:grid-cols-3">
+                {isLoading ? (
+                  Array.from({ length: 3 }).map((_, i) => <MetricCardSkeleton key={i} />)
+                ) : (
+                  <>
+                    <MetricCard
+                      title="Reels interactions"
+                      value={data?.contentInteractions?.reels.interactions ?? 0}
+                      change={398}
+                      description="likes + comments + shares"
+                      icon={TrendingUp}
+                      format="number"
+                      iconColor="text-orange-400"
+                      iconBg="bg-orange-500/10"
+                    />
+                    <MetricCard
+                      title="Saves (Reels)"
+                      value={data?.contentInteractions?.reels.saves ?? 0}
+                      icon={Bookmark}
+                      format="number"
+                      iconColor="text-amber-400"
+                      iconBg="bg-amber-500/10"
+                    />
+                    <MetricCard
+                      title="Non-abonnés touchés"
+                      value={`${data?.reachInsights?.nonFollowerReachPct ?? 0}%`}
+                      description="de la portée totale"
+                      icon={MessageCircle}
+                      format="raw"
+                      iconColor="text-indigo-400"
+                      iconBg="bg-indigo-500/10"
+                    />
+                  </>
+                )}
+              </div>
+            )}
 
             <div className="grid gap-6 lg:grid-cols-2">
               <AudienceQuality
@@ -245,14 +314,16 @@ export default function CreatorDashboard() {
                 isLoading={isLoading}
               />
 
-              {/* Reco card */}
-              <div className="space-y-4">
-                <InsightsPanel
-                  request={{ ...insightsRequest, mode: "creator" }}
-                  initialInsights={mockCreatorInsights.filter((i) => i.category === "audience")}
-                />
-              </div>
+              <AudienceDemographics
+                audienceInsights={data?.audienceInsights}
+                isLoading={isLoading}
+              />
             </div>
+
+            <InsightsPanel
+              request={{ ...insightsRequest, mode: "creator" }}
+              initialInsights={mockCreatorInsights.filter((i) => i.category === "audience")}
+            />
           </TabsContent>
         </Tabs>
       </div>

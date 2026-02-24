@@ -14,11 +14,12 @@ export const metadata: Metadata = {
     "Plateforme d'analyse Instagram avancée pour créateurs de contenu et agences. Insights alimentés par l'IA.",
   keywords: ["Instagram", "analytics", "influencer", "agence", "insights", "dashboard"],
   robots: { index: false, follow: false }, // Private SaaS – no indexing
-  viewport: {
-    width: "device-width",
-    initialScale: 1,
-    maximumScale: 1,
-  },
+};
+
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
