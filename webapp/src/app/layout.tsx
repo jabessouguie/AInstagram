@@ -13,18 +13,36 @@ export const metadata: Metadata = {
   description:
     "Plateforme d'analyse Instagram avancée pour créateurs de contenu et agences. Insights alimentés par l'IA.",
   keywords: ["Instagram", "analytics", "influencer", "agence", "insights", "dashboard"],
-  robots: { index: false, follow: false }, // Private SaaS – no indexing
+  robots: { index: false, follow: false },
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "InstaInsights",
+  },
+  icons: {
+    icon: "/icon.svg",
+    apple: "/icon.svg",
+  },
 };
 
 export const viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
+  themeColor: "#7c3aed",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="fr" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('/sw.js');})}`,
+          }}
+        />
+      </head>
       <body className={`${inter.variable} font-sans`}>
         <Providers>{children}</Providers>
       </body>

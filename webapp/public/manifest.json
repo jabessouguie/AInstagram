@@ -1,0 +1,31 @@
+{
+  "name": "InstaInsights",
+  "short_name": "InstaInsights",
+  "description": "Dashboard d'analyse Instagram pour créateurs et agences",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f0f13",
+  "theme_color": "#7c3aed",
+  "orientation": "portrait-primary",
+  "categories": ["productivity", "social"],
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Dashboard",
+      "url": "/creator/dashboard",
+      "description": "Vue d'ensemble des analytics"
+    },
+    {
+      "name": "Interactions",
+      "url": "/creator/interactions",
+      "description": "Analyser tes interactions"
+    }
+  ]
+}
