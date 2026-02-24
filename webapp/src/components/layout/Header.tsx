@@ -4,7 +4,7 @@ import Link from "next/link";
 import { ThemeToggle } from "./ThemeToggle";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Sparkles, Home } from "lucide-react";
+import { Sparkles, Home, Users, FileText, Handshake } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { InstagramProfile } from "@/types/instagram";
 
@@ -34,6 +34,33 @@ export function Header({ profile, mode, agencyName }: HeaderProps) {
             {mode === "creator" ? "Créateur" : "Agence"}
           </Badge>
         </div>
+
+        {/* Center: Nav links (creator mode) */}
+        {mode === "creator" && (
+          <nav className="hidden items-center gap-1 md:flex">
+            <Button variant="ghost" size="sm" className="text-xs" asChild>
+              <Link href="/creator/dashboard">Dashboard</Link>
+            </Button>
+            <Button variant="ghost" size="sm" className="gap-1.5 text-xs" asChild>
+              <Link href="/creator/interactions">
+                <Users className="h-3.5 w-3.5" />
+                Interactions
+              </Link>
+            </Button>
+            <Button variant="ghost" size="sm" className="gap-1.5 text-xs" asChild>
+              <Link href="/creator/mediakit">
+                <FileText className="h-3.5 w-3.5" />
+                Media Kit
+              </Link>
+            </Button>
+            <Button variant="ghost" size="sm" className="gap-1.5 text-xs" asChild>
+              <Link href="/creator/collabs">
+                <Handshake className="h-3.5 w-3.5" />
+                Collabs
+              </Link>
+            </Button>
+          </nav>
+        )}
 
         {/* Right: Profile + Theme */}
         <div className="flex items-center gap-2">

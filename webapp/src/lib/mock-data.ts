@@ -169,6 +169,16 @@ function buildGrowthByMonth() {
   return months;
 }
 
+const calculatedAvgLikes = Math.round(
+  mockPosts.reduce((sum, p) => sum + p.likes, 0) / mockPosts.length
+);
+const calculatedAvgComments = Math.round(
+  mockPosts.reduce((sum, p) => sum + p.comments, 0) / mockPosts.length
+);
+const calculatedEngagementRate = Number(
+  (((calculatedAvgLikes + calculatedAvgComments) / mockFollowers.length) * 100).toFixed(1)
+);
+
 export const mockAnalytics: InstagramAnalytics = {
   profile: mockProfile,
   followers: mockFollowers,
@@ -178,11 +188,10 @@ export const mockAnalytics: InstagramAnalytics = {
   contentInteractions: mockContentInteractions,
   reachInsights: mockReachInsights,
   metrics: {
-    // Derived from real insight data: (8258 likes + 1612 comments) / 348 posts / 3826 followers
-    engagementRate: 3.8,
-    avgLikesPerPost: Math.round((2030 + 6228) / 348), // 24 likes/post avg
-    avgCommentsPerPost: Math.round((1237 + 375) / 348), // 5 comments/post avg
-    avgReachPerPost: Math.round(563833 / 348), // 1620 impressions/post avg
+    engagementRate: calculatedEngagementRate,
+    avgLikesPerPost: calculatedAvgLikes,
+    avgCommentsPerPost: calculatedAvgComments,
+    avgReachPerPost: Math.round(calculatedAvgLikes * 3.5),
     followerGrowthRate: -43.7,
     followerGrowthByMonth: buildGrowthByMonth(),
     bestPostingDays: [
@@ -379,10 +388,9 @@ export const mockCreatorInsights: AIInsight[] = [
     id: "3",
     type: "warning",
     category: "audience",
-    title: "75% de tes abonnés sont inactifs",
-    description:
-      "Seulement 25% de tes 6,623 abonnés interagissent régulièrement avec ton contenu. Cette inactivité impacte ton algorithme.",
-    metric: "~4,967 abonnés inactifs",
+    title: "88% de tes abonnés sont inactifs",
+    description: `Seulement 12% de tes ${mockFollowers.length.toLocaleString("fr-FR")} abonnés interagissent régulièrement avec ton contenu. Cette inactivité impacte ton algorithme.`,
+    metric: `~${Math.floor(mockFollowers.length * 0.88).toLocaleString("fr-FR")} abonnés inactifs`,
     recommendation:
       "Lance une campagne de réengagement avec des sondages en stories et du contenu interactif.",
     priority: "medium",

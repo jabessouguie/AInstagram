@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Sparkles, TrendingUp, AlertTriangle, Lightbulb, Bell, RefreshCw } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -55,6 +55,16 @@ export function InsightsPanel({ request, initialInsights, summary }: InsightsPan
 
   const displayInsights = insights?.insights ?? initialInsights;
   const displaySummary = insights?.summary ?? summary;
+
+  // Auto-generate when we have real metrics data and haven't generated yet
+  const hasData = Object.keys(request.metrics).length > 0 && request.profile?.followerCount;
+  useEffect(() => {
+    if (hasData && !hasGenerated && !isLoading) {
+      setHasGenerated(true);
+      generate(request);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasData]);
 
   const handleGenerate = async () => {
     setHasGenerated(true);

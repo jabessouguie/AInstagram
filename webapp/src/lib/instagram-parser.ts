@@ -103,7 +103,7 @@ function parseNum(s: string): number {
 
 /** Extract the first float from a string like "2.9%" or "-43.7% vs..." */
 function parsePct(s: string): number {
-  const m = s.match(/-?([\d.]+)/);
+  const m = s.match(/(-?[\d.]+)/);
   return m ? parseFloat(m[1]) : 0;
 }
 
@@ -523,27 +523,37 @@ function computeMetrics(
   contentInteractions: ContentInteractions | null,
   reachInsights: ReachInsights | null
 ): InstagramMetrics {
-  // Use real follower count when available (more accurate than counting HTML entries)
+  // Use real follower count from insights (more accurate than counting HTML link entries)
   const followerCount = audienceInsights?.followerCount ?? followers.length;
 
-  // Compute likes/comments from real data if available
+  // Derive per-post averages from real aggregate insight data when available
   let avgLikes: number;
   let avgComments: number;
+  let engagementRate: number;
 
-  if (contentInteractions && posts.length > 0) {
+  if (contentInteractions && followerCount > 0) {
+    // Real data path: use aggregated interactions from content_interactions.html
+    const postCount = posts.filter((p) => p.mediaType !== "STORY").length || posts.length;
+    // Total likes and comments across posts + reels
     const realLikes = contentInteractions.posts.likes + contentInteractions.reels.likes;
     const realComments = contentInteractions.posts.comments + contentInteractions.reels.comments;
-    avgLikes = realLikes / posts.length;
-    avgComments = realComments / posts.length;
+    avgLikes = postCount > 0 ? realLikes / postCount : 0;
+    avgComments = postCount > 0 ? realComments / postCount : 0;
+    // Per-post engagement rate: (avgLikes + avgComments) / followers × 100
+    // This is the standard influencer-marketing ER metric
+    engagementRate = followerCount > 0 ? ((avgLikes + avgComments) / followerCount) * 100 : 0;
   } else {
+    // Fallback: compute from raw post data (only works if likes are populated)
     const totalLikes = posts.reduce((a, p) => a + p.likes, 0);
     const totalComments = posts.reduce((a, p) => a + p.comments, 0);
     avgLikes = posts.length > 0 ? totalLikes / posts.length : 0;
     avgComments = posts.length > 0 ? totalComments / posts.length : 0;
+    engagementRate =
+      followerCount > 0 && posts.length > 0 ? ((avgLikes + avgComments) / followerCount) * 100 : 0;
   }
 
-  const engagementRate =
-    followerCount > 0 && posts.length > 0 ? ((avgLikes + avgComments) / followerCount) * 100 : 0;
+  // Round to 2 decimal places for display
+  engagementRate = Math.round(engagementRate * 100) / 100;
 
   // Avg reach: use real impressions data if available
   const avgReachPerPost =
@@ -557,21 +567,25 @@ function computeMetrics(
     (u) => !followerUsernames.has(u)
   ).length;
 
-  // Inactive follower estimation: 100% - accounts who interacted (followers segment)
-  const inactiveCount = contentInteractions
+  // Inactive follower estimation based on % of followers who never interacted
+  // From content_interactions: nonFollowerInteractionPct tells us what % of interactions
+  // came from non-followers. We estimate active followers from accountsInteracted.
+  const followerInteractors = contentInteractions
     ? Math.round(
-        followerCount - followerCount * (1 - contentInteractions.nonFollowerInteractionPct / 100)
+        contentInteractions.accountsInteracted *
+          (1 - contentInteractions.nonFollowerInteractionPct / 100)
       )
+    : 0;
+  const inactiveCount = contentInteractions
+    ? Math.max(0, followerCount - followerInteractors)
     : Math.round(followerCount * 0.75);
   const inactivePercentage = followerCount > 0 ? (inactiveCount / followerCount) * 100 : 75;
 
-  // Follower growth rate: extract from insight change string if available
+  // Follower growth rate: extract signed percentage from insight change string
   let followerGrowthRate = 0;
   if (audienceInsights?.followerCountChange) {
-    const m = audienceInsights.followerCountChange.match(/-?([\d.]+)%/);
-    if (m)
-      followerGrowthRate =
-        parseFloat(m[1]) * (audienceInsights.followerCountChange.startsWith("-") ? -1 : 1);
+    const m = audienceInsights.followerCountChange.match(/(-?[\d.]+)%/);
+    if (m) followerGrowthRate = parseFloat(m[1]);
   }
 
   const growthByMonth = computeFollowerGrowth(followers);

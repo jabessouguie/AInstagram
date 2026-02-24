@@ -25,7 +25,6 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Skeleton } from "@/components/ui/skeleton";
 import { useInstagramData } from "@/hooks/useInstagramData";
 import { formatNumber, formatDate } from "@/lib/utils";
-import { mockCreatorInsights } from "@/lib/mock-data";
 
 const TYPE_LABELS: Record<string, string> = {
   IMAGE: "📸 Photo",
@@ -133,11 +132,7 @@ export default function CreatorDashboard() {
             />
 
             {/* AI Insights */}
-            <InsightsPanel
-              request={insightsRequest}
-              initialInsights={mockCreatorInsights}
-              summary="Profil avec un bon potentiel. Les Reels sont ton meilleur levier de croissance organique."
-            />
+            <InsightsPanel request={insightsRequest} />
           </TabsContent>
 
           {/* ── Content Tab ── */}
@@ -320,10 +315,7 @@ export default function CreatorDashboard() {
               />
             </div>
 
-            <InsightsPanel
-              request={{ ...insightsRequest, mode: "creator" }}
-              initialInsights={mockCreatorInsights.filter((i) => i.category === "audience")}
-            />
+            <InsightsPanel request={{ ...insightsRequest, mode: "creator" }} />
           </TabsContent>
         </Tabs>
       </div>

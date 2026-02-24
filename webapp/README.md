@@ -98,9 +98,36 @@ npm run build && npm start
 
 Pour les créateurs de contenu et influenceurs :
 
-- **Vue d'ensemble** : KPIs (abonnés, engagement, likes, commentaires) + graphique de croissance
-- **Contenu** : Performance par type (Reels, Photos, Carousels) + meilleurs créneaux de publication + top posts
-- **Audience** : Qualité (actifs/inactifs), abonnements non-réciproques, insights IA
+- **Dashboard** (`/creator/dashboard`) : KPIs réels (abonnés, taux d'engagement, likes/commentaires calculés depuis `content_interactions.html`), graphique de croissance, Insights IA Gemini auto-générés au chargement
+- **Contenu** : Performance par type (Reels, Photos, Carousels), meilleurs créneaux de publication, top 10 posts par engagement
+- **Audience** : Qualité (actifs/inactifs calculés depuis `content_interactions`), abonnements non-réciproques, insights IA
+
+### Analyse des Interactions (`/creator/interactions`) 🆕
+
+3 onglets basés sur l'analyse complète de l'export :
+
+| Onglet          | Description                                                        |
+| --------------- | ------------------------------------------------------------------ |
+| **Inactifs**    | Abonnés que tu suis mais qui n'ont jamais liké ni commenté         |
+| **DM suggérés** | Comptes à contacter — Gemini génère un DM personnalisé sur demande |
+| **À unfollow**  | Comptes sans follow-back, DM envoyé il y a + d'1 mois              |
+
+### Générateur de Media Kit (`/creator/mediakit`) 🆕
+
+Interface Canva-inspirée avec :
+
+- **Preview live** en temps réel dans un iframe
+- **6 palettes de couleurs** prédéfinies + personnalisation complète (color picker)
+- **Édition** : tagline, email, tarif par post, liste de services
+- **Export HTML** (téléchargement direct)
+- **Export PDF** (impression via CSS @media print)
+- **Lien de partage** (URL copiée en un clic)
+
+### Trouveur de Collabs (`/creator/collabs`) 🆕
+
+- Recherche par localisation + centres d'intérêt (multi-select + custom)
+- Gemini identifie 6 opportunités de collaboration pertinentes (marques, créateurs, événements, médias)
+- Pour chaque collab : email de contact personnalisé généré par Gemini, visualisable et copiable en un clic
 
 ### Vue Agence (`/agency/dashboard`)
 

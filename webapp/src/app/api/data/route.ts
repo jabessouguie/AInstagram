@@ -4,7 +4,6 @@ import { mockAnalytics } from "@/lib/mock-data";
 import type { DataApiResponse } from "@/types/instagram";
 
 export const dynamic = "force-dynamic";
-export const revalidate = 3600; // 1 hour cache
 
 export async function GET(): Promise<NextResponse<DataApiResponse>> {
   try {
