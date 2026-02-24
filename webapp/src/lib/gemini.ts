@@ -6,7 +6,7 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import type { InsightsApiRequest, InsightsResponse, AIInsight } from "@/types/instagram";
 
-const MODEL_NAME = "gemini-2.0-flash";
+const MODEL_NAME = "gemini-2.5-flash";
 
 function getClient(): GoogleGenerativeAI {
   const key = process.env.GEMINI_API_KEY;
