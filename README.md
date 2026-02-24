@@ -171,7 +171,7 @@ webapp/
 └── next.config.mjs
 ```
 
-**Stack:** Next.js 14 · TypeScript · Tailwind CSS · shadcn/ui · Recharts · SWR · Gemini 2.0 Flash · Jest
+**Stack:** Next.js 14 · TypeScript · Tailwind CSS · shadcn/ui · Recharts · SWR · Gemini 3.1 Pro · Jest
 
 ---
 
