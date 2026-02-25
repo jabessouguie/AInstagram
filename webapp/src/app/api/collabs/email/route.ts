@@ -19,8 +19,8 @@ export interface CollabEmailResponse {
 
 export async function POST(request: Request): Promise<NextResponse<CollabEmailResponse>> {
   try {
-    const body: CollabEmailRequest = await request.json();
-    const { collab, profile, language = "fr" } = body;
+    const body: CollabEmailRequest & { feedback?: string } = await request.json();
+    const { collab, profile, language = "fr", feedback } = body;
 
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
@@ -54,7 +54,7 @@ Réponds UNIQUEMENT avec ce JSON (sans markdown ni guillemets autour) :
 {
   "subject": "Objet de l'email",
   "body": "Corps complet de l'email"
-}`;
+}${feedback ? `\n\nRetours utilisateur sur la version précédente : ${feedback}` : ""}`;
 
     const result = await model.generateContent(prompt);
     const raw = result.response

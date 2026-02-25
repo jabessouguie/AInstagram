@@ -6,8 +6,8 @@ export const dynamic = "force-dynamic";
 
 export async function POST(request: Request): Promise<NextResponse<DMSuggestResponse>> {
   try {
-    const body: DMSuggestRequest = await request.json();
-    const { username, profileUrl, creatorProfile } = body;
+    const body: DMSuggestRequest & { feedback?: string } = await request.json();
+    const { username, profileUrl, creatorProfile, feedback } = body;
 
     if (!username || !profileUrl) {
       return NextResponse.json(
@@ -38,7 +38,7 @@ Write a short, authentic, warm and personalised DM in English (2-3 sentences max
 - Not be pushy or transactional
 - End with an open question to start a conversation
 
-Reply with ONLY the DM text, no quotes, no explanations.`;
+Reply with ONLY the DM text, no quotes, no explanations.${feedback ? `\n\nUser feedback on previous version: ${feedback}` : ""}`;
 
     const result = await model.generateContent(prompt);
     const suggestedDm = result.response.text().trim();

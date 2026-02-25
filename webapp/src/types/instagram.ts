@@ -240,6 +240,8 @@ export interface InsightsApiRequest {
   contentInteractions?: Partial<ContentInteractions>;
   /** Reach & impressions data */
   reachInsights?: Partial<ReachInsights>;
+  /** Optional user feedback to steer regeneration */
+  userFeedback?: string;
 }
 
 export interface InsightsApiResponse {

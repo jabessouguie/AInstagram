@@ -14,6 +14,7 @@ import {
 import { Header } from "@/components/layout/Header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { AIFeedbackBar } from "@/components/ui/ai-feedback-bar";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useInstagramData } from "@/hooks/useInstagramData";
@@ -36,26 +37,30 @@ function DMReplyCard({
   const [isGenerating, setIsGenerating] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  const generate = useCallback(async () => {
-    setIsGenerating(true);
-    try {
-      const res = await fetch("/api/responses/compose", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          username: dm.username,
-          lastMessage: dm.lastMessage,
-          creatorProfile: { username: creatorUsername, followerCount: creatorFollowers },
-        }),
-      });
-      const json = await res.json();
-      if (json.success && json.data?.suggestedReply) {
-        setReply(json.data.suggestedReply);
+  const generate = useCallback(
+    async (feedback?: string) => {
+      setIsGenerating(true);
+      try {
+        const res = await fetch("/api/responses/compose", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            username: dm.username,
+            lastMessage: dm.lastMessage,
+            creatorProfile: { username: creatorUsername, followerCount: creatorFollowers },
+            feedback,
+          }),
+        });
+        const json = await res.json();
+        if (json.success && json.data?.suggestedReply) {
+          setReply(json.data.suggestedReply);
+        }
+      } finally {
+        setIsGenerating(false);
       }
-    } finally {
-      setIsGenerating(false);
-    }
-  }, [dm, creatorUsername, creatorFollowers]);
+    },
+    [dm, creatorUsername, creatorFollowers]
+  );
 
   const handleCopy = () => {
     navigator.clipboard.writeText(reply);
@@ -128,25 +133,34 @@ function DMReplyCard({
           </p>
         )}
 
-        <Button
-          size="sm"
-          variant={reply ? "outline" : "default"}
-          className="w-full text-xs"
-          onClick={generate}
-          disabled={isGenerating}
-        >
-          {isGenerating ? (
-            <>
-              <Loader2 className="h-3 w-3 animate-spin" />
-              Génération...
-            </>
-          ) : (
-            <>
-              <RefreshCw className="h-3 w-3" />
-              {reply ? "Régénérer la réponse" : "Générer une réponse"}
-            </>
-          )}
-        </Button>
+        {reply && (
+          <AIFeedbackBar
+            onRegenerate={generate}
+            isGenerating={isGenerating}
+            placeholder="Ex: sois plus bref, réponds à leur question spécifique, ton plus amical…"
+          />
+        )}
+        {!reply && (
+          <Button
+            size="sm"
+            variant="default"
+            className="w-full text-xs"
+            onClick={() => generate()}
+            disabled={isGenerating}
+          >
+            {isGenerating ? (
+              <>
+                <Loader2 className="h-3 w-3 animate-spin" />
+                Génération...
+              </>
+            ) : (
+              <>
+                <RefreshCw className="h-3 w-3" />
+                Générer une réponse
+              </>
+            )}
+          </Button>
+        )}
       </CardContent>
     </Card>
   );

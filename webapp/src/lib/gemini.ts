@@ -207,7 +207,7 @@ Inclus obligatoirement :
       "priority": "high|medium|low"
     }
   ]
-}`;
+}${req.userFeedback ? `\n\nRetours utilisateur sur la version précédente : ${req.userFeedback}` : ""}`;
 }
 
 function buildAgencyPrompt(req: InsightsApiRequest): string {
@@ -249,7 +249,7 @@ Génère exactement 5 insights JSON pour l'agence (sans markdown, juste le JSON)
       "priority": "high|medium|low"
     }
   ]
-}`;
+}${req.userFeedback ? `\n\nRetours utilisateur sur la version précédente : ${req.userFeedback}` : ""}`;
 }
 
 export async function generateInsights(req: InsightsApiRequest): Promise<InsightsResponse> {

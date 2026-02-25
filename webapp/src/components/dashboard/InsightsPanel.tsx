@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Sparkles, TrendingUp, AlertTriangle, Lightbulb, Bell, RefreshCw } from "lucide-react";
+import { AIFeedbackBar } from "@/components/ui/ai-feedback-bar";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -66,9 +67,9 @@ export function InsightsPanel({ request, initialInsights, summary }: InsightsPan
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasData]);
 
-  const handleGenerate = async () => {
+  const handleGenerate = async (feedback?: string) => {
     setHasGenerated(true);
-    await generate(request);
+    await generate({ ...request, userFeedback: feedback });
   };
 
   return (
@@ -86,7 +87,7 @@ export function InsightsPanel({ request, initialInsights, summary }: InsightsPan
           <Button
             size="sm"
             variant="outline"
-            onClick={handleGenerate}
+            onClick={() => handleGenerate()}
             disabled={isLoading}
             className="shrink-0 text-xs"
           >
@@ -191,6 +192,15 @@ export function InsightsPanel({ request, initialInsights, summary }: InsightsPan
             <p className="text-sm text-muted-foreground">
               Cliquez sur &quot;Générer&quot; pour obtenir des insights IA personnalisés
             </p>
+          </div>
+        )}
+        {displayInsights && displayInsights.length > 0 && (
+          <div className="p-4 pt-0">
+            <AIFeedbackBar
+              onRegenerate={handleGenerate}
+              isGenerating={isLoading}
+              placeholder="Ex: concentre-toi sur la croissance, donne plus de conseils contenu, sois plus précis sur les Reels…"
+            />
           </div>
         )}
       </CardContent>

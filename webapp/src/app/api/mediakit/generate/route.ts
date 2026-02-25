@@ -15,6 +15,7 @@ export interface MediaKitGenerateRequest {
   audienceGender?: { female: number; male: number };
   topCountries?: string[];
   posts?: Array<{ caption: string }>;
+  feedback?: string;
 }
 
 export interface MediaKitGenerateResponse {
@@ -38,6 +39,7 @@ export async function POST(request: Request): Promise<NextResponse<MediaKitGener
       audienceGender,
       topCountries,
       posts,
+      feedback,
     } = body;
 
     const apiKey = process.env.GEMINI_API_KEY;
@@ -98,7 +100,7 @@ Réponds UNIQUEMENT avec ce JSON (sans markdown) :
   "tagline": "Tagline percutante ici",
   "services": ["Service 1", "Service 2", "Service 3", "Service 4", "Service 5"],
   "ratePerPost": "XXX€"
-}`;
+}${feedback ? `\n\nRetours utilisateur sur la version précédente : ${feedback}` : ""}`;
 
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({ model: MODEL_NAME });

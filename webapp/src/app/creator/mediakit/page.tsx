@@ -27,6 +27,7 @@ import {
   defaultMediaKitConfig,
   type MediaKitConfig,
 } from "@/lib/mediakit-generator";
+import { AIFeedbackBar } from "@/components/ui/ai-feedback-bar";
 
 // ─── Google Fonts ─────────────────────────────────────────────────────────────
 
@@ -133,6 +134,7 @@ export default function MediaKitPage() {
   const [activeTab, setActiveTab] = useState<"edit" | "preview">("edit");
   const [shareId] = useState(() => Math.random().toString(36).substring(2, 10));
   const [isGenerating, setIsGenerating] = useState(false);
+  const [hasGenerated, setHasGenerated] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
 
@@ -157,61 +159,66 @@ export default function MediaKitPage() {
 
   // ── AI generation ─────────────────────────────────────────────────────────
 
-  const generateWithAI = useCallback(async () => {
-    if (!data || isGenerating) return;
-    setIsGenerating(true);
-    try {
-      const topContentType = data.metrics?.contentTypePerformance?.sort(
-        (a, b) => (b.avgEngagement ?? 0) - (a.avgEngagement ?? 0)
-      )[0]?.type;
+  const generateWithAI = useCallback(
+    async (feedback?: string) => {
+      if (!data || isGenerating) return;
+      setIsGenerating(true);
+      try {
+        const topContentType = data.metrics?.contentTypePerformance?.sort(
+          (a, b) => (b.avgEngagement ?? 0) - (a.avgEngagement ?? 0)
+        )[0]?.type;
 
-      const topCountries = data.audienceInsights?.topCountries
-        ? Object.keys(data.audienceInsights.topCountries).slice(0, 3)
-        : [];
+        const topCountries = data.audienceInsights?.topCountries
+          ? Object.keys(data.audienceInsights.topCountries).slice(0, 3)
+          : [];
 
-      const body = {
-        username: data.profile.username ?? "",
-        followerCount: data.profile.followerCount ?? 0,
-        engagementRate: data.metrics?.engagementRate ?? 0,
-        bio: data.profile.bio ?? "",
-        contactEmail: config.contactEmail,
-        topContentType,
-        audienceGender: data.audienceInsights?.genderSplit
-          ? {
-              female: data.audienceInsights.genderSplit.female ?? 0,
-              male: data.audienceInsights.genderSplit.male ?? 0,
-            }
-          : undefined,
-        topCountries,
-        posts: data.posts
-          ?.filter((p) => p.caption.trim().length > 0)
-          .slice(0, 10)
-          .map((p) => ({ caption: p.caption })),
-      };
+        const body = {
+          username: data.profile.username ?? "",
+          followerCount: data.profile.followerCount ?? 0,
+          engagementRate: data.metrics?.engagementRate ?? 0,
+          bio: data.profile.bio ?? "",
+          contactEmail: config.contactEmail,
+          topContentType,
+          audienceGender: data.audienceInsights?.genderSplit
+            ? {
+                female: data.audienceInsights.genderSplit.female ?? 0,
+                male: data.audienceInsights.genderSplit.male ?? 0,
+              }
+            : undefined,
+          topCountries,
+          posts: data.posts
+            ?.filter((p) => p.caption.trim().length > 0)
+            .slice(0, 10)
+            .map((p) => ({ caption: p.caption })),
+          feedback,
+        };
 
-      const res = await fetch("/api/mediakit/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
+        const res = await fetch("/api/mediakit/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
 
-      if (res.ok) {
-        const json = await res.json();
-        if (json.success) {
-          setConfig((c) => ({
-            ...c,
-            tagline: json.tagline ?? c.tagline,
-            services: json.services?.length ? json.services : c.services,
-            ratePerPost: json.ratePerPost ?? c.ratePerPost,
-          }));
+        if (res.ok) {
+          const json = await res.json();
+          if (json.success) {
+            setHasGenerated(true);
+            setConfig((c) => ({
+              ...c,
+              tagline: json.tagline ?? c.tagline,
+              services: json.services?.length ? json.services : c.services,
+              ratePerPost: json.ratePerPost ?? c.ratePerPost,
+            }));
+          }
         }
+      } catch (err) {
+        console.error("AI generate error:", err);
+      } finally {
+        setIsGenerating(false);
       }
-    } catch (err) {
-      console.error("AI generate error:", err);
-    } finally {
-      setIsGenerating(false);
-    }
-  }, [data, config.contactEmail, isGenerating]);
+    },
+    [data, config.contactEmail, isGenerating]
+  );
 
   const handleDownloadHTML = useCallback(() => {
     const blob = new Blob([html], { type: "text/html" });
@@ -307,7 +314,12 @@ export default function MediaKitPage() {
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" size="sm" onClick={generateWithAI} disabled={isGenerating}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => generateWithAI()}
+              disabled={isGenerating}
+            >
               {isGenerating ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
               ) : (
@@ -475,6 +487,7 @@ export default function MediaKitPage() {
                       Uploader une photo
                     </Button>
                     {config.profilePicUrl && (
+                      // eslint-disable-next-line @next/next/no-img-element
                       <img
                         src={config.profilePicUrl}
                         alt="Aperçu"
@@ -503,6 +516,13 @@ export default function MediaKitPage() {
                   onChange={(v) => updateConfig("ratePerPost", v)}
                   placeholder="500€"
                 />
+                {hasGenerated && (
+                  <AIFeedbackBar
+                    onRegenerate={generateWithAI}
+                    isGenerating={isGenerating}
+                    placeholder="Ex: je suis dans la niche fitness, cible les marques de sport, tarif plus élevé…"
+                  />
+                )}
               </CardContent>
             </Card>
 

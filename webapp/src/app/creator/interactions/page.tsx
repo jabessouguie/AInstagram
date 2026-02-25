@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { Header } from "@/components/layout/Header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { AIFeedbackBar } from "@/components/ui/ai-feedback-bar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -86,26 +87,30 @@ function DMCard({
   const [isGenerating, setIsGenerating] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  const generate = useCallback(async () => {
-    setIsGenerating(true);
-    try {
-      const res = await fetch("/api/interactions/dm-suggest", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          username: suggestion.username,
-          profileUrl: suggestion.profileUrl,
-          creatorProfile: { username: creatorUsername, followerCount: creatorFollowers },
-        }),
-      });
-      const json = await res.json();
-      if (json.success && json.data?.suggestedDm) {
-        setDm(json.data.suggestedDm);
+  const generate = useCallback(
+    async (feedback?: string) => {
+      setIsGenerating(true);
+      try {
+        const res = await fetch("/api/interactions/dm-suggest", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            username: suggestion.username,
+            profileUrl: suggestion.profileUrl,
+            creatorProfile: { username: creatorUsername, followerCount: creatorFollowers },
+            feedback,
+          }),
+        });
+        const json = await res.json();
+        if (json.success && json.data?.suggestedDm) {
+          setDm(json.data.suggestedDm);
+        }
+      } finally {
+        setIsGenerating(false);
       }
-    } finally {
-      setIsGenerating(false);
-    }
-  }, [suggestion, creatorUsername, creatorFollowers]);
+    },
+    [suggestion, creatorUsername, creatorFollowers]
+  );
 
   const handleCopy = () => {
     navigator.clipboard.writeText(dm);
@@ -151,25 +156,34 @@ function DMCard({
             Clique sur &ldquo;Générer&rdquo; pour obtenir un DM personnalisé via Gemini.
           </p>
         )}
-        <Button
-          size="sm"
-          variant="outline"
-          className="w-full text-xs"
-          onClick={generate}
-          disabled={isGenerating}
-        >
-          {isGenerating ? (
-            <>
-              <Loader2 className="h-3 w-3 animate-spin" />
-              Génération...
-            </>
-          ) : (
-            <>
-              <RefreshCw className="h-3 w-3" />
-              {dm ? "Régénérer" : "Générer le DM"}
-            </>
-          )}
-        </Button>
+        {dm && (
+          <AIFeedbackBar
+            onRegenerate={generate}
+            isGenerating={isGenerating}
+            placeholder="Ex: rends le ton plus chaleureux, mentionne leur contenu vidéo…"
+          />
+        )}
+        {!dm && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="w-full text-xs"
+            onClick={() => generate()}
+            disabled={isGenerating}
+          >
+            {isGenerating ? (
+              <>
+                <Loader2 className="h-3 w-3 animate-spin" />
+                Génération...
+              </>
+            ) : (
+              <>
+                <RefreshCw className="h-3 w-3" />
+                Générer le DM
+              </>
+            )}
+          </Button>
+        )}
       </CardContent>
     </Card>
   );

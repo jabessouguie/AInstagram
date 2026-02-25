@@ -19,6 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useInstagramData } from "@/hooks/useInstagramData";
 import type { CollabMatch } from "@/app/api/collabs/route";
+import { AIFeedbackBar } from "@/components/ui/ai-feedback-bar";
 
 // ─── Type badges ──────────────────────────────────────────────────────────────
 
@@ -43,21 +44,24 @@ function CollabCard({
   const [isGeneratingEmail, setIsGeneratingEmail] = useState(false);
   const [copiedEmail, setCopiedEmail] = useState(false);
 
-  const generateEmail = useCallback(async () => {
-    setIsGeneratingEmail(true);
-    setExpanded(true);
-    try {
-      const res = await fetch("/api/collabs/email", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ collab, profile }),
-      });
-      const json = await res.json();
-      if (json.success && json.data) setEmailData(json.data);
-    } finally {
-      setIsGeneratingEmail(false);
-    }
-  }, [collab, profile]);
+  const generateEmail = useCallback(
+    async (feedback?: string) => {
+      setIsGeneratingEmail(true);
+      setExpanded(true);
+      try {
+        const res = await fetch("/api/collabs/email", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ collab, profile, feedback }),
+        });
+        const json = await res.json();
+        if (json.success && json.data) setEmailData(json.data);
+      } finally {
+        setIsGeneratingEmail(false);
+      }
+    },
+    [collab, profile]
+  );
 
   const copyEmail = () => {
     if (!emailData) return;
@@ -115,7 +119,7 @@ function CollabCard({
             size="sm"
             variant="outline"
             className="text-xs"
-            onClick={generateEmail}
+            onClick={() => generateEmail()}
             disabled={isGeneratingEmail}
           >
             {isGeneratingEmail ? (
@@ -153,6 +157,11 @@ function CollabCard({
               <FileText className="h-3 w-3" />
               {copiedEmail ? "✓ Copié !" : "Copier l'email complet"}
             </Button>
+            <AIFeedbackBar
+              onRegenerate={generateEmail}
+              isGenerating={isGeneratingEmail}
+              placeholder="Ex: rends l'objet plus accrocheur, ajoute un tarif, ton plus décontracté…"
+            />
           </div>
         )}
       </CardContent>

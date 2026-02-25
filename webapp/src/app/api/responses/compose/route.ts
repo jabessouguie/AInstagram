@@ -17,8 +17,8 @@ export interface ComposeResponse {
 
 export async function POST(request: Request): Promise<NextResponse<ComposeResponse>> {
   try {
-    const body: ComposeRequest = await request.json();
-    const { username, lastMessage, creatorProfile } = body;
+    const body: ComposeRequest & { feedback?: string } = await request.json();
+    const { username, lastMessage, creatorProfile, feedback } = body;
 
     if (!username || !lastMessage) {
       return NextResponse.json(
@@ -51,7 +51,7 @@ Rédige une réponse courte, authentique et chaleureuse en français (2-3 phrase
 - Maintenir une relation positive
 - Être appropriée pour un créateur de contenu
 
-Réponds UNIQUEMENT avec le texte de la réponse, sans guillemets ni explications.`;
+Réponds UNIQUEMENT avec le texte de la réponse, sans guillemets ni explications.${feedback ? `\n\nRetours utilisateur sur la version précédente : ${feedback}` : ""}`;
 
     const result = await model.generateContent(prompt);
     const suggestedReply = result.response.text().trim();
