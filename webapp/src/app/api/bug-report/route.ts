@@ -39,7 +39,7 @@ export async function POST(request: Request): Promise<NextResponse<BugReportResp
 
     if (geminiKey) {
       const genAI = new GoogleGenerativeAI(geminiKey);
-      const model = genAI.getGenerativeModel({ model: "gemini-3.1-pro-preview" });
+      const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
       const contextText = [
         pageUrl ? `Page : ${pageUrl}` : "",

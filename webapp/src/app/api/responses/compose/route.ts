@@ -40,7 +40,7 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({ model: "gemini-3.1-pro-preview" });
+  const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
   const prompt = `Tu es @${creatorProfile.username ?? "moi"}, créateur de contenu Instagram avec ${(creatorProfile.followerCount ?? 0).toLocaleString("fr-FR")} abonnés.
 

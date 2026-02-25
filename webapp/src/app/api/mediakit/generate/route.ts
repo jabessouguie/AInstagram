@@ -3,7 +3,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 
 export const dynamic = "force-dynamic";
 
-const MODEL_NAME = "nano-banana-pro-preview";
+const MODEL_NAME = "gemini-2.0-flash";
 
 export interface MediaKitGenerateRequest {
   username: string;
