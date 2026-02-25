@@ -234,6 +234,12 @@ export interface InsightsApiRequest {
   creatorProfile?: Partial<CreatorProfile>;
   /** Recent posts (caption + timestamp) for theme & timing analysis */
   posts?: Array<{ caption: string; timestamp: string; mediaType: string }>;
+  /** Audience demographics & follower growth from the export */
+  audienceInsights?: Partial<AudienceInsights>;
+  /** Content interaction breakdown (likes/saves/shares by format) */
+  contentInteractions?: Partial<ContentInteractions>;
+  /** Reach & impressions data */
+  reachInsights?: Partial<ReachInsights>;
 }
 
 export interface InsightsApiResponse {

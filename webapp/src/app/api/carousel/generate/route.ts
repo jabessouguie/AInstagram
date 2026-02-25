@@ -8,7 +8,7 @@ import type {
 
 export const dynamic = "force-dynamic";
 
-const MODEL_NAME = "gemini-1.5-flash";
+const MODEL_NAME = "gemini-3-flash-preview";
 
 function buildCarouselPrompt(req: CarouselGenerateRequest): string {
   const { subject, audience, fonts, numSlides, previousCaptions } = req;

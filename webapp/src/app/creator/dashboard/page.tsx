@@ -54,6 +54,10 @@ export default function CreatorDashboard() {
           timestamp: p.timestamp instanceof Date ? p.timestamp.toISOString() : String(p.timestamp),
           mediaType: p.mediaType,
         })),
+      // Rich context for niche / audience / location-aware insights
+      audienceInsights: data?.audienceInsights,
+      contentInteractions: data?.contentInteractions,
+      reachInsights: data?.reachInsights,
     }),
     [data]
   );
