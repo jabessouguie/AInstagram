@@ -11,6 +11,10 @@ const nextConfig = {
                 protocol: "https",
                 hostname: "*.instagram.com",
             },
+            {
+                protocol: "https",
+                hostname: "ui-avatars.com",
+            },
         ],
     },
     headers: async () => [
@@ -27,7 +31,7 @@ const nextConfig = {
                         "default-src 'self'",
                         "script-src 'self' 'unsafe-eval' 'unsafe-inline'",
                         "style-src 'self' 'unsafe-inline'",
-                        "img-src 'self' data: https://*.cdninstagram.com",
+                        "img-src 'self' data: https://*.cdninstagram.com https://ui-avatars.com",
                         "font-src 'self'",
                         "connect-src 'self' https://generativelanguage.googleapis.com",
                     ].join("; "),

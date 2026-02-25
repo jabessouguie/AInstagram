@@ -16,7 +16,6 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
   manifest: "/manifest.json",
   appleWebApp: {
-    capable: true,
     statusBarStyle: "black-translucent",
     title: "InstaInsights",
   },

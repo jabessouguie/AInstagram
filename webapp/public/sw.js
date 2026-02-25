@@ -25,6 +25,8 @@ self.addEventListener("activate", (event) => {
 // Fetch: network-first for API, cache-first for everything else
 self.addEventListener("fetch", (event) => {
   const { request } = event;
+  // Skip non-http(s) requests (e.g. chrome-extension://)
+  if (!request.url.startsWith("http")) return;
   const url = new URL(request.url);
 
   // Always network-first for API routes
