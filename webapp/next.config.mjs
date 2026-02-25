@@ -31,7 +31,7 @@ const nextConfig = {
                         "default-src 'self'",
                         "script-src 'self' 'unsafe-eval' 'unsafe-inline'",
                         "style-src 'self' 'unsafe-inline'",
-                        "img-src 'self' data: https://*.cdninstagram.com https://ui-avatars.com",
+                        "img-src 'self' data: blob: https://*.cdninstagram.com https://ui-avatars.com",
                         "font-src 'self'",
                         "connect-src 'self' https://generativelanguage.googleapis.com",
                     ].join("; "),
