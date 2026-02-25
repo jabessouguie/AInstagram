@@ -182,16 +182,6 @@ export default function CreatorDashboard() {
                             {formatDate(new Date(post.timestamp))}
                           </p>
                         </div>
-                        <div className="flex shrink-0 items-center gap-3 text-xs tabular-nums">
-                          <span className="flex items-center gap-1">
-                            <Heart className="h-3 w-3 text-red-400" />
-                            {formatNumber(post.likes)}
-                          </span>
-                          <span className="flex items-center gap-1 text-muted-foreground">
-                            <MessageCircle className="h-3 w-3" />
-                            {post.comments}
-                          </span>
-                        </div>
                         <Badge variant="outline" className="shrink-0 text-[10px]">
                           {TYPE_LABELS[post.mediaType] ?? post.mediaType}
                         </Badge>
