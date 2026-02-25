@@ -10,7 +10,6 @@ import {
   Users,
   FileText,
   Handshake,
-  MessageCircle,
   MessageSquarePlus,
   LayoutPanelLeft,
 } from "lucide-react";
@@ -76,12 +75,6 @@ export function Header({ profile, mode, agencyName }: HeaderProps) {
               <Link href="/creator/collabs">
                 <Handshake className="h-3.5 w-3.5" />
                 {t("nav.collabs")}
-              </Link>
-            </Button>
-            <Button variant="ghost" size="sm" className="gap-1.5 text-xs" asChild>
-              <Link href="/creator/responses">
-                <MessageCircle className="h-3.5 w-3.5" />
-                {t("nav.responses")}
               </Link>
             </Button>
             <Button variant="ghost" size="sm" className="gap-1.5 text-xs" asChild>
