@@ -113,7 +113,7 @@ export default function CreatorDashboard() {
                     title={t("kpi.followers")}
                     value={data?.profile.followerCount ?? 0}
                     change={data?.metrics.followerGrowthRate}
-                    description="vs mois dernier"
+                    description={t("dashboard.vsLastMonth")}
                     icon={Users}
                     format="number"
                     iconColor="text-violet-400"
@@ -123,7 +123,7 @@ export default function CreatorDashboard() {
                     title={t("kpi.engagementRate")}
                     value={data?.metrics.engagementRate ?? 0}
                     change={0.3}
-                    description="vs mois dernier"
+                    description={t("dashboard.vsLastMonth")}
                     icon={TrendingUp}
                     format="percent"
                     iconColor="text-pink-400"
@@ -232,7 +232,7 @@ export default function CreatorDashboard() {
                       Math.round(data?.metrics.avgReachPerPost ?? 0)
                     }
                     change={data?.reachInsights ? 173 : undefined}
-                    description="vs période précédente"
+                    description={t("dashboard.vsPreviousPeriod")}
                     icon={Eye}
                     format="number"
                     iconColor="text-cyan-400"
@@ -242,7 +242,7 @@ export default function CreatorDashboard() {
                     title={t("kpi.impressions")}
                     value={data?.reachInsights?.impressions ?? 0}
                     change={data?.reachInsights ? 182 : undefined}
-                    description="vs période précédente"
+                    description={t("dashboard.vsPreviousPeriod")}
                     icon={BarChart2}
                     format="number"
                     iconColor="text-violet-400"
@@ -252,7 +252,7 @@ export default function CreatorDashboard() {
                     title={t("kpi.profileVisits")}
                     value={data?.reachInsights?.profileVisits ?? 0}
                     change={data?.reachInsights ? 19.6 : undefined}
-                    description="vs période précédente"
+                    description={t("dashboard.vsPreviousPeriod")}
                     icon={Users}
                     format="number"
                     iconColor="text-emerald-400"
@@ -262,7 +262,7 @@ export default function CreatorDashboard() {
                     title={t("kpi.accountsInteracted")}
                     value={data?.contentInteractions?.accountsInteracted ?? 0}
                     change={data?.contentInteractions ? 179 : undefined}
-                    description={`${data?.contentInteractions?.nonFollowerInteractionPct ?? 0}% non-abonnés`}
+                    description={`${data?.contentInteractions?.nonFollowerInteractionPct ?? 0}% ${t("dashboard.nonFollowerPctSuffix")}`}
                     icon={Share2}
                     format="number"
                     iconColor="text-pink-400"
@@ -280,17 +280,17 @@ export default function CreatorDashboard() {
                 ) : (
                   <>
                     <MetricCard
-                      title="Reels interactions"
+                      title={t("dashboard.reelInteractions")}
                       value={data?.contentInteractions?.reels.interactions ?? 0}
                       change={398}
-                      description="likes + comments + shares"
+                      description={t("dashboard.reelInteractionsDesc")}
                       icon={TrendingUp}
                       format="number"
                       iconColor="text-orange-400"
                       iconBg="bg-orange-500/10"
                     />
                     <MetricCard
-                      title="Saves (Reels)"
+                      title={t("dashboard.saves")}
                       value={data?.contentInteractions?.reels.saves ?? 0}
                       icon={Bookmark}
                       format="number"
@@ -298,9 +298,9 @@ export default function CreatorDashboard() {
                       iconBg="bg-amber-500/10"
                     />
                     <MetricCard
-                      title="Non-abonnés touchés"
+                      title={t("dashboard.nonFollowerReach")}
                       value={`${data?.reachInsights?.nonFollowerReachPct ?? 0}%`}
-                      description="de la portée totale"
+                      description={t("dashboard.nonFollowerReachDesc")}
                       icon={MessageCircle}
                       format="raw"
                       iconColor="text-indigo-400"

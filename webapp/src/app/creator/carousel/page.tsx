@@ -307,7 +307,7 @@ export default function CarouselPage() {
       }
     } catch (err) {
       console.error(err);
-      setResult({ success: false, error: "Erreur réseau" });
+      setResult({ success: false, error: t("carousel.error.network") });
     } finally {
       setIsGenerating(false);
     }
@@ -350,12 +350,9 @@ export default function CarouselPage() {
         <div className="mb-8">
           <h1 className="flex items-center gap-2 text-2xl font-bold">
             <LayoutPanelLeft className="h-6 w-6 text-violet-400" />
-            Générateur de Carrousel
+            {t("carousel.title")}
           </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Crée un carrousel Instagram captivant à partir de tes photos et d&apos;un sujet. Gemini
-            analyse ton style pour rester fidèle à ton esthétique.
-          </p>
+          <p className="mt-1 text-sm text-muted-foreground">{t("carousel.subtitle")}</p>
         </div>
 
         <div className="grid gap-6 lg:grid-cols-[1fr_420px]">
@@ -364,18 +361,22 @@ export default function CarouselPage() {
             {/* Subject */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-sm font-semibold">1. Sujet du carrousel</CardTitle>
+                <CardTitle className="text-sm font-semibold">
+                  {t("carousel.subject.title")}
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 <textarea
                   value={subject}
                   onChange={(e) => setSubject(e.target.value)}
-                  placeholder="Ex: 5 erreurs qui empêchent ta croissance sur Instagram"
+                  placeholder={t("carousel.subject.placeholder")}
                   rows={3}
                   className="w-full resize-none rounded-md border border-border bg-background px-3 py-2 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-primary/30"
                 />
                 <div className="mt-3 flex items-center gap-3">
-                  <label className="text-xs text-muted-foreground">Nombre de slides :</label>
+                  <label className="text-xs text-muted-foreground">
+                    {t("carousel.subject.slideCount")}
+                  </label>
                   {[3, 4, 5, 6, 7, 8].map((n) => (
                     <button
                       key={n}
@@ -391,7 +392,9 @@ export default function CarouselPage() {
                   ))}
                 </div>
                 <div className="mt-3 flex items-center gap-3">
-                  <label className="text-xs text-muted-foreground">Langue des slides :</label>
+                  <label className="text-xs text-muted-foreground">
+                    {t("carousel.subject.language")}
+                  </label>
                   {(["en", "fr"] as const).map((lang) => (
                     <button
                       key={lang}
@@ -412,8 +415,10 @@ export default function CarouselPage() {
             {/* Photos */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-sm font-semibold">2. Photos</CardTitle>
-                <CardDescription>Jusqu&apos;à 10 photos · formats JPG, PNG, WebP</CardDescription>
+                <CardTitle className="text-sm font-semibold">
+                  {t("carousel.photos.title")}
+                </CardTitle>
+                <CardDescription>{t("carousel.photos.description")}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
                 {/* Drop zone */}
@@ -427,7 +432,7 @@ export default function CarouselPage() {
                   className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-border py-8 text-sm text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
                 >
                   <Upload className="h-6 w-6" />
-                  <span>Clique ou glisse tes photos ici</span>
+                  <span>{t("carousel.photos.dropzone")}</span>
                 </div>
                 <input
                   ref={fileInputRef}
@@ -465,12 +470,16 @@ export default function CarouselPage() {
             {/* Audience */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-sm font-semibold">3. Audience cible</CardTitle>
+                <CardTitle className="text-sm font-semibold">
+                  {t("carousel.audience.title")}
+                </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="mb-1 block text-xs text-muted-foreground">Genre</label>
+                    <label className="mb-1 block text-xs text-muted-foreground">
+                      {t("carousel.audience.gender")}
+                    </label>
                     <select
                       value={audience.gender}
                       onChange={(e) =>
@@ -481,31 +490,33 @@ export default function CarouselPage() {
                       }
                       className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-primary/30"
                     >
-                      <option value="all">Tous</option>
-                      <option value="female">Femmes</option>
-                      <option value="male">Hommes</option>
+                      <option value="all">{t("carousel.audience.genderAll")}</option>
+                      <option value="female">{t("carousel.audience.genderFemale")}</option>
+                      <option value="male">{t("carousel.audience.genderMale")}</option>
                     </select>
                   </div>
                   <div>
-                    <label className="mb-1 block text-xs text-muted-foreground">Région</label>
+                    <label className="mb-1 block text-xs text-muted-foreground">
+                      {t("carousel.audience.region")}
+                    </label>
                     <input
                       type="text"
                       value={audience.region}
                       onChange={(e) => setAudience((a) => ({ ...a, region: e.target.value }))}
-                      placeholder="France, Afrique, Monde…"
+                      placeholder={t("carousel.audience.regionPlaceholder")}
                       className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-primary/30"
                     />
                   </div>
                 </div>
                 <div>
                   <label className="mb-1 block text-xs text-muted-foreground">
-                    Centres d&apos;intérêt (séparés par des virgules)
+                    {t("carousel.audience.interests")}
                   </label>
                   <input
                     type="text"
                     value={audience.interests}
                     onChange={(e) => setAudience((a) => ({ ...a, interests: e.target.value }))}
-                    placeholder="fitness, lifestyle, entrepreneuriat…"
+                    placeholder={t("carousel.audience.interestsPlaceholder")}
                     className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-primary/30"
                   />
                 </div>
@@ -515,7 +526,9 @@ export default function CarouselPage() {
             {/* Graphic charter */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-sm font-semibold">4. Charte graphique</CardTitle>
+                <CardTitle className="text-sm font-semibold">
+                  {t("carousel.design.title")}
+                </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 {/* Fonts */}
@@ -523,7 +536,11 @@ export default function CarouselPage() {
                   {(["title", "subtitle", "body"] as const).map((role) => (
                     <div key={role}>
                       <label className="mb-1 block text-[10px] uppercase tracking-wide text-muted-foreground">
-                        {role === "title" ? "Titre" : role === "subtitle" ? "Sous-titre" : "Corps"}
+                        {role === "title"
+                          ? t("carousel.design.fontTitle")
+                          : role === "subtitle"
+                            ? t("carousel.design.fontSubtitle")
+                            : t("carousel.design.fontBody")}
                       </label>
                       <select
                         value={fonts[role]}
@@ -544,8 +561,13 @@ export default function CarouselPage() {
                 <div className="grid grid-cols-2 gap-3">
                   {(
                     [
-                      ["primaryColor", "Fond / Dégradé", primaryColor, setPrimaryColor],
-                      ["accentColor", "Couleur accent", accentColor, setAccentColor],
+                      [
+                        "primaryColor",
+                        t("carousel.design.background"),
+                        primaryColor,
+                        setPrimaryColor,
+                      ],
+                      ["accentColor", t("carousel.design.accent"), accentColor, setAccentColor],
                     ] as const
                   ).map(([, label, value, setter]) => (
                     <div key={label}>
@@ -585,12 +607,12 @@ export default function CarouselPage() {
               {isGenerating ? (
                 <>
                   <Sparkles className="h-4 w-4 animate-spin" />
-                  Génération en cours...
+                  {t("carousel.button.generating")}
                 </>
               ) : (
                 <>
                   <Sparkles className="h-4 w-4" />
-                  Générer le carrousel
+                  {t("carousel.button.generate")}
                 </>
               )}
             </Button>
@@ -600,10 +622,13 @@ export default function CarouselPage() {
           <div className="space-y-4">
             <Card className="sticky top-20">
               <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-semibold">Aperçu du carrousel</CardTitle>
+                <CardTitle className="text-sm font-semibold">
+                  {t("carousel.preview.title")}
+                </CardTitle>
                 {result?.slides && (
                   <CardDescription>
-                    {previewBlobs.length} / {result.slides.length} slides rendues
+                    {previewBlobs.length} / {result.slides.length}{" "}
+                    {t("carousel.preview.slidesRendered")}
                   </CardDescription>
                 )}
               </CardHeader>
@@ -657,7 +682,7 @@ export default function CarouselPage() {
                   ) : (
                     <div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">
                       <LayoutPanelLeft className="h-10 w-10 opacity-30" />
-                      <p className="text-xs">L&apos;aperçu apparaîtra ici</p>
+                      <p className="text-xs">{t("carousel.preview.empty")}</p>
                     </div>
                   )}
                 </div>
@@ -672,11 +697,11 @@ export default function CarouselPage() {
                       onClick={() => downloadSlide(previewIndex)}
                     >
                       <Download className="h-3.5 w-3.5" />
-                      Slide {previewIndex + 1}
+                      {t("carousel.download.slide")} {previewIndex + 1}
                     </Button>
                     <Button size="sm" className="flex-1 gap-1.5 text-xs" onClick={downloadAll}>
                       <Download className="h-3.5 w-3.5" />
-                      Tout télécharger
+                      {t("carousel.download.all")}
                     </Button>
                   </div>
                 )}
@@ -686,7 +711,7 @@ export default function CarouselPage() {
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                        Description Instagram
+                        {t("carousel.description.label")}
                       </span>
                       <Button
                         variant="ghost"
@@ -727,7 +752,7 @@ export default function CarouselPage() {
                 {/* Error */}
                 {result && !result.success && (
                   <p className="text-xs text-destructive">
-                    {result.error ?? "Une erreur est survenue"}
+                    {result.error ?? t("carousel.error.generic")}
                   </p>
                 )}
               </CardContent>

@@ -29,14 +29,7 @@ import {
 } from "@/lib/mediakit-generator";
 import { AIFeedbackBar } from "@/components/ui/ai-feedback-bar";
 import { useAnimatedStatus } from "@/hooks/useAnimatedStatus";
-
-const MEDIAKIT_GEN_STATUSES = [
-  "Analyse de ta niche…",
-  "Identification de ton positionnement…",
-  "Génération de ta tagline…",
-  "Calcul du tarif adapté…",
-  "Finalisation du media kit…",
-];
+import { useT } from "@/lib/i18n";
 
 // ─── Google Fonts ─────────────────────────────────────────────────────────────
 
@@ -138,6 +131,14 @@ function LabeledInput({
 
 export default function MediaKitPage() {
   const { data, isLoading } = useInstagramData();
+  const t = useT();
+  const MEDIAKIT_GEN_STATUSES = [
+    t("mediakit.gen.status.analyzeNiche"),
+    t("mediakit.gen.status.positioning"),
+    t("mediakit.gen.status.tagline"),
+    t("mediakit.gen.status.rate"),
+    t("mediakit.gen.status.finalise"),
+  ];
   const [config, setConfig] = useState<MediaKitConfig>(defaultMediaKitConfig);
   const [newService, setNewService] = useState("");
   const [activeTab, setActiveTab] = useState<"edit" | "preview">("edit");
@@ -302,7 +303,7 @@ export default function MediaKitPage() {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <Header mode="creator" />
-        <p className="text-muted-foreground">Aucune donnée Instagram disponible.</p>
+        <p className="text-muted-foreground">{t("mediakit.noData")}</p>
       </div>
     );
   }
@@ -317,11 +318,9 @@ export default function MediaKitPage() {
           <div>
             <h1 className="flex items-center gap-2 text-2xl font-bold">
               <Sparkles className="h-5 w-5 text-violet-400" />
-              Générateur de Media Kit
+              {t("mediakit.title")}
             </h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Personnalise et exporte ton media kit professionnel
-            </p>
+            <p className="mt-1 text-sm text-muted-foreground">{t("mediakit.subtitle")}</p>
           </div>
           <div className="flex flex-wrap gap-2">
             <Button
@@ -335,19 +334,19 @@ export default function MediaKitPage() {
               ) : (
                 <Sparkles className="h-3.5 w-3.5 text-violet-400" />
               )}
-              {isGenerating ? generatingStatus : "Générer avec l'IA"}
+              {isGenerating ? generatingStatus : t("mediakit.ai.button")}
             </Button>
             <Button variant="outline" size="sm" onClick={handleShare}>
               <Share2 className="h-3.5 w-3.5" />
-              Copier lien de partage
+              {t("mediakit.share")}
             </Button>
             <Button variant="outline" size="sm" onClick={handlePrintPDF}>
               <RefreshCw className="h-3.5 w-3.5" />
-              Exporter PDF
+              {t("mediakit.exportPDF")}
             </Button>
             <Button size="sm" onClick={handleDownloadHTML}>
               <Download className="h-3.5 w-3.5" />
-              Télécharger HTML
+              {t("mediakit.downloadHTML")}
             </Button>
           </div>
         </div>
@@ -358,13 +357,13 @@ export default function MediaKitPage() {
             onClick={() => setActiveTab("edit")}
             className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${activeTab === "edit" ? "bg-background text-foreground shadow" : "text-muted-foreground"}`}
           >
-            <Edit3 className="h-3.5 w-3.5" /> Éditer
+            <Edit3 className="h-3.5 w-3.5" /> {t("mediakit.tab.edit")}
           </button>
           <button
             onClick={() => setActiveTab("preview")}
             className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${activeTab === "preview" ? "bg-background text-foreground shadow" : "text-muted-foreground"}`}
           >
-            <Eye className="h-3.5 w-3.5" /> Aperçu
+            <Eye className="h-3.5 w-3.5" /> {t("mediakit.tab.preview")}
           </button>
         </div>
 
@@ -376,7 +375,7 @@ export default function MediaKitPage() {
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-sm font-semibold">
                   <Palette className="h-4 w-4 text-violet-400" />
-                  Palette de couleurs
+                  {t("mediakit.colors.title")}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
@@ -402,17 +401,17 @@ export default function MediaKitPage() {
                 </div>
                 <div className="grid grid-cols-3 gap-2">
                   <ColorPickerField
-                    label="Primaire"
+                    label={t("mediakit.colors.primary")}
                     value={config.primaryColor}
                     onChange={(v) => updateConfig("primaryColor", v)}
                   />
                   <ColorPickerField
-                    label="Secondaire"
+                    label={t("mediakit.colors.secondary")}
                     value={config.secondaryColor}
                     onChange={(v) => updateConfig("secondaryColor", v)}
                   />
                   <ColorPickerField
-                    label="Accent"
+                    label={t("mediakit.colors.accent")}
                     value={config.accentColor}
                     onChange={(v) => updateConfig("accentColor", v)}
                   />
@@ -425,15 +424,15 @@ export default function MediaKitPage() {
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-sm font-semibold">
                   <Type className="h-4 w-4 text-sky-400" />
-                  Polices
+                  {t("mediakit.fonts.title")}
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 gap-3">
                   {(
                     [
-                      ["fontTitle", "Titre", config.fontTitle],
-                      ["fontBody", "Corps de texte", config.fontBody],
+                      ["fontTitle", t("mediakit.fonts.fontTitle"), config.fontTitle],
+                      ["fontBody", t("mediakit.fonts.fontBody"), config.fontBody],
                     ] as const
                   ).map(([key, label, value]) => (
                     <div key={key}>
@@ -462,7 +461,7 @@ export default function MediaKitPage() {
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-sm font-semibold">
                   <Edit3 className="h-4 w-4 text-pink-400" />
-                  Identité
+                  {t("mediakit.identity.title")}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
@@ -470,7 +469,7 @@ export default function MediaKitPage() {
                 <div className="space-y-1.5">
                   <label className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
                     <ImageIcon className="h-3 w-3" />
-                    Photo de profil
+                    {t("mediakit.identity.profilePic")}
                   </label>
                   <input
                     type="url"
@@ -494,13 +493,13 @@ export default function MediaKitPage() {
                       onClick={() => photoInputRef.current?.click()}
                     >
                       <Upload className="h-3 w-3" />
-                      Uploader une photo
+                      {t("mediakit.identity.uploadPhoto")}
                     </Button>
                     {config.profilePicUrl && (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
                         src={config.profilePicUrl}
-                        alt="Aperçu"
+                        alt={t("mediakit.identity.photoPreview")}
                         className="h-10 w-10 flex-shrink-0 rounded-full border border-border object-cover"
                         onError={(e) => (e.currentTarget.style.display = "none")}
                       />
@@ -508,29 +507,29 @@ export default function MediaKitPage() {
                   </div>
                 </div>
                 <LabeledInput
-                  label="Tagline"
+                  label={t("mediakit.identity.tagline")}
                   value={config.tagline}
                   onChange={(v) => updateConfig("tagline", v)}
-                  placeholder="Créateur de contenu passionné..."
+                  placeholder={t("mediakit.identity.taglinePlaceholder")}
                 />
                 <LabeledInput
-                  label="Email de contact"
+                  label={t("mediakit.identity.email")}
                   value={config.contactEmail}
                   onChange={(v) => updateConfig("contactEmail", v)}
-                  placeholder="contact@monsite.com"
+                  placeholder={t("mediakit.identity.emailPlaceholder")}
                   type="email"
                 />
                 <LabeledInput
-                  label="Tarif indicatif (ex: 500€)"
+                  label={t("mediakit.identity.rate")}
                   value={config.ratePerPost ?? ""}
                   onChange={(v) => updateConfig("ratePerPost", v)}
-                  placeholder="500€"
+                  placeholder={t("mediakit.identity.ratePlaceholder")}
                 />
                 {hasGenerated && (
                   <AIFeedbackBar
                     onRegenerate={generateWithAI}
                     isGenerating={isGenerating}
-                    placeholder="Ex: je suis dans la niche fitness, cible les marques de sport, tarif plus élevé…"
+                    placeholder={t("mediakit.identity.feedbackPlaceholder")}
                   />
                 )}
               </CardContent>
@@ -539,7 +538,9 @@ export default function MediaKitPage() {
             {/* Services */}
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-semibold">Services proposés</CardTitle>
+                <CardTitle className="text-sm font-semibold">
+                  {t("mediakit.services.title")}
+                </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="flex flex-wrap gap-2">
@@ -561,7 +562,7 @@ export default function MediaKitPage() {
                     value={newService}
                     onChange={(e) => setNewService(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && addService()}
-                    placeholder="Ajouter un service..."
+                    placeholder={t("mediakit.services.addPlaceholder")}
                     className="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/30"
                   />
                   <Button size="sm" onClick={addService}>
@@ -580,7 +581,7 @@ export default function MediaKitPage() {
             <div className="flex items-center justify-between border-b border-border bg-muted/50 px-3 py-2">
               <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
                 <Eye className="h-3 w-3" />
-                Aperçu live
+                {t("mediakit.preview.label")}
               </span>
               <Badge variant="outline" className="text-[10px]">
                 @{data.profile.username}
@@ -596,7 +597,7 @@ export default function MediaKitPage() {
               />
             ) : (
               <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-                Chargement du preview...
+                {t("mediakit.preview.loading")}
               </div>
             )}
           </div>

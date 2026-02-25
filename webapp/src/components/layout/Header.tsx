@@ -89,7 +89,7 @@ export function Header({ profile, mode, agencyName }: HeaderProps) {
         {/* Right: Profile + Theme */}
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="icon" className="h-9 w-9" asChild>
-            <Link href="/" aria-label="Retour à l'accueil">
+            <Link href="/" aria-label={t("header.homeAriaLabel")}>
               <Home className="h-4 w-4" />
             </Link>
           </Button>
