@@ -24,7 +24,7 @@ export async function POST(request: Request): Promise<NextResponse<DMSuggestResp
     }
 
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-3.0-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
     const prompt = `Tu es un créateur de contenu Instagram qui s'appelle @${creatorProfile.username ?? "moi"} avec ${creatorProfile.followerCount?.toLocaleString("fr-FR") ?? "plusieurs milliers"} d'abonnés.
 

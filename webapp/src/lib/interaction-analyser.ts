@@ -143,20 +143,85 @@ function parseSentDMs(exportFolder: string): Map<string, DMRecord> {
   return dms;
 }
 
+// ─── French date parser (Instagram export uses locale-formatted dates) ────────
+
+const FR_MONTHS: Record<string, number> = {
+  janv: 0,
+  jan: 0,
+  janvier: 0,
+  févr: 1,
+  fév: 1,
+  feb: 1,
+  février: 1,
+  mars: 2,
+  mar: 2,
+  avr: 3,
+  avril: 3,
+  mai: 4,
+  juin: 5,
+  juil: 6,
+  juillet: 6,
+  août: 7,
+  aout: 7,
+  sept: 8,
+  sep: 8,
+  septembre: 8,
+  oct: 9,
+  octobre: 9,
+  nov: 10,
+  novembre: 10,
+  déc: 11,
+  dec: 11,
+  décembre: 11,
+};
+
+function parseFrDate(text: string): Date | null {
+  if (!text) return null;
+  // Format: "fév 24, 2026 5:55 am"  or  "janv. 3, 2025 10:00 pm"
+  const m = text
+    .trim()
+    .match(/^([a-zéûôàèùâêîäëïöü]+)\.?\s+(\d{1,2}),\s+(\d{4})\s+(\d{1,2}):(\d{2})\s*(am|pm)/i);
+  if (!m) return null;
+  const month = FR_MONTHS[m[1].toLowerCase()];
+  if (month === undefined) return null;
+  let hour = parseInt(m[4]);
+  const min = parseInt(m[5]);
+  const ampm = m[6].toLowerCase();
+  if (ampm === "pm" && hour < 12) hour += 12;
+  if (ampm === "am" && hour === 12) hour = 0;
+  return new Date(parseInt(m[3]), month, parseInt(m[2]), hour, min);
+}
+
 // ─── Parse followers / following from export ──────────────────────────────────
 
 function parseFollowerFile(filePath: string): InstagramFollower[] {
   const $ = loadHtml(filePath);
   if (!$) return [];
   const result: InstagramFollower[] = [];
+
+  // Instagram HTML export structure:
+  // <h2 class="..._a6-h _a6-i">{username}</h2>
+  // <div class="_a6-p"><div>
+  //   <div><a href="https://www.instagram.com/_u/{username}">…</a></div>
+  //   <div>{date: "fév 24, 2026 5:55 am"}</div>
+  // </div></div>
   $("a[href*='instagram.com']").each((_: number, el: AnyNode) => {
-    // Some Instagram export versions put "_u/username" as the anchor text
-    const username = $(el).text().trim().toLowerCase().replace(/^_u\//, "");
-    const dateText = $(el).closest("li, tr").find("div[class*='_a72_']").text().trim();
+    const href = $(el).attr("href") ?? "";
+    // Extract username from href — anchor text is the full URL, not just the username
+    const match =
+      href.match(/instagram\.com\/_u\/([^/?#]+)/) ?? href.match(/instagram\.com\/([^/?#]+)/);
+    if (!match) return;
+    const username = match[1].toLowerCase();
     if (!username || username.length < 2) return;
+
+    // Date is in the next sibling <div> of the anchor's parent wrapper
+    const dateText =
+      $(el).parent().next("div").text().trim() ||
+      $(el).closest("li, tr").find("div[class*='_a72_']").text().trim();
+
     result.push({
       username,
-      followedAt: dateText ? new Date(dateText) : new Date(0),
+      followedAt: parseFrDate(dateText) ?? new Date(0),
       isFollowingBack: false,
       isActive: false,
     });
