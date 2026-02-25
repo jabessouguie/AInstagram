@@ -19,26 +19,26 @@ export async function POST(request: Request): Promise<NextResponse<DMSuggestResp
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
       // Fallback DM if no Gemini key
-      const fallbackDm = `Salut @${username} ! Je suis tombé sur ton profil et j'ai adoré ton contenu. On partage visiblement les mêmes centres d'intérêts — ce serait cool de se connecter ! 🙌`;
+      const fallbackDm = `Hey @${username}! I came across your profile and really loved your content — we seem to share the same vibe. Would love to follow and support each other! What kind of content are you working on lately? 🙌`;
       return NextResponse.json({ success: true, data: { suggestedDm: fallbackDm } });
     }
 
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-3-flash-preview" });
+    const model = genAI.getGenerativeModel({ model: "gemini-3.1-pro-preview" });
 
-    const prompt = `Tu es un créateur de contenu Instagram qui s'appelle @${creatorProfile.username ?? "moi"} avec ${creatorProfile.followerCount?.toLocaleString("fr-FR") ?? "plusieurs milliers"} d'abonnés.
+    const prompt = `You are an Instagram content creator called @${creatorProfile.username ?? "me"} with ${creatorProfile.followerCount?.toLocaleString("en-US") ?? "several thousand"} followers.
 
-Tu veux envoyer un message privé (DM) à @${username} (profil: ${profileUrl}).
-Tu suis ce compte mais il ne te suit pas encore en retour.
+You want to send a direct message (DM) to @${username} (profile: ${profileUrl}).
+You follow this account but they don't follow you back yet.
 
-Rédige un DM court, authentique, chaleureux et personnalisé en français (2-3 phrases max). Le DM doit :
-- Sonner 100% humain, pas robotique
-- Mentionner de façon subtile que tu suis leur profil
-- Ne pas être trop commercial ou demander un follow
-- Avoir une phrase d'accroche naturelle basée sur leur username (${username}) ou leur niche potentielle
-- Terminer avec une question ouverte pour engager la conversation
+Write a short, authentic, warm and personalised DM in English (2-3 sentences max). The DM must:
+- Sound 100% human, not robotic
+- Naturally suggest that you both follow and support each other (mutual follow / community support vibe)
+- Feel genuine — reference their username (${username}) or their likely niche to make it personal
+- Not be pushy or transactional
+- End with an open question to start a conversation
 
-Réponds UNIQUEMENT avec le texte du DM, sans guillemets ni explications.`;
+Reply with ONLY the DM text, no quotes, no explanations.`;
 
     const result = await model.generateContent(prompt);
     const suggestedDm = result.response.text().trim();

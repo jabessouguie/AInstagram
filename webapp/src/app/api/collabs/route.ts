@@ -49,7 +49,7 @@ export async function POST(request: Request): Promise<NextResponse<CollabFinderR
     }
 
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-3.1-pro-preview" });
+    const model = genAI.getGenerativeModel({ model: "deep-research-pro-preview-12-2025" });
 
     const prompt = `Tu es un expert en marketing d'influence et développement commercial.
 
