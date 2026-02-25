@@ -78,7 +78,9 @@ function parseLikers(exportFolder: string): Set<string> {
     if (!$) continue;
     $("a[href*='instagram.com']").each((_: number, el: AnyNode) => {
       const href = $(el).attr("href") ?? "";
-      const match = href.match(/instagram\.com\/([^/?#]+)/);
+      // Instagram exports use _u/ redirect URLs — try that pattern first
+      const match =
+        href.match(/instagram\.com\/_u\/([^/?#]+)/) ?? href.match(/instagram\.com\/([^/?#]+)/);
       if (match) likers.add(match[1].toLowerCase());
     });
   }
@@ -148,7 +150,8 @@ function parseFollowerFile(filePath: string): InstagramFollower[] {
   if (!$) return [];
   const result: InstagramFollower[] = [];
   $("a[href*='instagram.com']").each((_: number, el: AnyNode) => {
-    const username = $(el).text().trim().toLowerCase();
+    // Some Instagram export versions put "_u/username" as the anchor text
+    const username = $(el).text().trim().toLowerCase().replace(/^_u\//, "");
     const dateText = $(el).closest("li, tr").find("div[class*='_a72_']").text().trim();
     if (!username || username.length < 2) return;
     result.push({
@@ -217,7 +220,7 @@ export async function analyseInteractions(): Promise<InteractionAnalysis | null>
 
   for (const username of followingSet) {
     const followedSince = followingDates.get(username) ?? new Date(0);
-    const profileUrl = `https://instagram.com/${username}`;
+    const profileUrl = `https://www.instagram.com/${username}`;
     const theyFollowBack = followerSet.has(username);
     const neverInteractedWith = !interactors.has(username);
 
@@ -243,7 +246,10 @@ export async function analyseInteractions(): Promise<InteractionAnalysis | null>
           username,
           profileUrl,
           followedSince,
-          reason: `Tu suis @${username} depuis le ${followedSince.toLocaleDateString("fr-FR")} mais ils ne te suivent pas en retour`,
+          reason:
+            followedSince.getTime() > 0
+              ? `Tu suis @${username} depuis le ${followedSince.toLocaleDateString("fr-FR")} mais ils ne te suivent pas en retour`
+              : `Tu suis @${username} mais ils ne te suivent pas en retour`,
         });
       }
     }

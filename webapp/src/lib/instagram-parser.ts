@@ -150,6 +150,112 @@ function parseInsightTable(exportFolder: string, relativePath: string): Map<stri
   return map;
 }
 
+/**
+ * Parse an Instagram insights period string into [startDate, endDate].
+ * Handles multiple formats:
+ *   - "Nov 26 - Feb 23"              (English, no year  → infer from today)
+ *   - "5 déc. 2024 – 28 févr. 2025" (French, with year)
+ * Returns null if parsing fails.
+ */
+function parseInsightPeriod(period: string): [Date, Date] | null {
+  const MONTHS: Record<string, number> = {
+    // French
+    janv: 0,
+    jan: 0,
+    fév: 1,
+    fev: 1,
+    févr: 1,
+    mars: 2,
+    mar: 2,
+    avr: 3,
+    apr: 3,
+    mai: 4,
+    may: 4,
+    juin: 5,
+    jun: 5,
+    juil: 6,
+    jul: 6,
+    août: 7,
+    aout: 7,
+    aug: 7,
+    sept: 8,
+    sep: 8,
+    oct: 9,
+    nov: 10,
+    déc: 11,
+    dec: 11,
+    // English
+    january: 0,
+    february: 1,
+    feb: 1,
+    march: 2,
+    april: 3,
+    june: 5,
+    july: 6,
+    august: 7,
+    september: 8,
+    october: 9,
+    november: 10,
+    december: 11,
+  };
+
+  const s = period.toLowerCase().replace(/\./g, "").trim();
+
+  // ── Format A: "Nov 26 - Feb 23" (Mon DD, no year) ─────────────────────────
+  const patA = /^([a-zéûôàèùâêîäëïöü]+)\s+(\d{1,2})\s*[-–—]\s*([a-zéûôàèùâêîäëïöü]+)\s+(\d{1,2})$/;
+  const mA = s.match(patA);
+  if (mA) {
+    const startMonth = MONTHS[mA[1]];
+    const startDay = parseInt(mA[2]);
+    const endMonth = MONTHS[mA[3]];
+    const endDay = parseInt(mA[4]);
+    if (startMonth !== undefined && endMonth !== undefined) {
+      const now = new Date();
+      const currentYear = now.getFullYear();
+      const currentMonth = now.getMonth();
+      const currentDay = now.getDate();
+
+      // Determine end year: if the end date is in the future relative to today,
+      // it belongs to the current year; otherwise current year is right already.
+      // If endMonth > currentMonth (or same month but day > today) → still this year.
+      let endYear = currentYear;
+      if (endMonth > currentMonth || (endMonth === currentMonth && endDay > currentDay)) {
+        // End date hasn't happened yet this year — shouldn't occur for past insights
+        // but guard just in case by staying in current year
+        endYear = currentYear;
+      }
+
+      // Start year: if start month > end month the period crosses a year boundary
+      const startYear = startMonth > endMonth ? endYear - 1 : endYear;
+
+      const start = new Date(startYear, startMonth, startDay, 0, 0, 0, 0);
+      const end = new Date(endYear, endMonth, endDay, 23, 59, 59, 999);
+      return [start, end];
+    }
+  }
+
+  // ── Format B: "5 déc. 2024 – 28 févr. 2025" (D Mon YYYY) ─────────────────
+  const dateRe = /(\d{1,2})\s+([a-zéûôàèùâêîäëïöü]+)\.?\s+(\d{4})/gi;
+  const dates: Date[] = [];
+  let m;
+  while ((m = dateRe.exec(s)) !== null) {
+    const day = parseInt(m[1]);
+    const monthKey = m[2].replace(/\.$/, "");
+    const year = parseInt(m[3]);
+    const monthNum = MONTHS[monthKey];
+    if (monthNum !== undefined && day >= 1 && day <= 31) {
+      dates.push(new Date(year, monthNum, day));
+    }
+  }
+  if (dates.length >= 2) {
+    const end = dates[dates.length - 1];
+    end.setHours(23, 59, 59, 999);
+    return [dates[0], end];
+  }
+
+  return null;
+}
+
 /** Parse a number string like "3,826" or "385340" or "-2,966" */
 function parseNum(s: string): number {
   const cleaned = s.replace(/[,\s]/g, "");
@@ -361,8 +467,41 @@ function parsePostsFile(filePath: string, mediaType: MediaType): InstagramPost[]
   return posts;
 }
 
+/**
+ * Parse archived posts and return a Set of their timestamps (ms) + captions
+ * so we can exclude them from the active post list.
+ */
+function parseArchivedPostKeys(exportFolder: string): Set<string> {
+  const filePath = path.join(
+    exportFolder,
+    "your_instagram_activity",
+    "media",
+    "archived_posts.html"
+  );
+  const $ = loadHtml(filePath);
+  if (!$) return new Set();
+
+  const keys = new Set<string>();
+  $("div.pam").each((_: number, el: AnyNode) => {
+    const $el = $(el);
+    const caption = $el.find("h2[class*='_a6-h']").first().text().trim();
+    const timestampText = $el.find("div[class*='_a6-o']").first().text().trim();
+    const ts = parseTimestamp(timestampText).getTime();
+    // Key = timestamp + first 40 chars of caption (collision-resistant enough)
+    keys.add(`${ts}::${caption.substring(0, 40)}`);
+  });
+
+  return keys;
+}
+
 function parsePosts(exportFolder: string): InstagramPost[] {
   const mediaDir = path.join(exportFolder, "your_instagram_activity", "media");
+
+  // Build an exclusion set from archived posts so they are never counted
+  const archivedKeys = parseArchivedPostKeys(exportFolder);
+  const isArchived = (p: InstagramPost) =>
+    archivedKeys.has(`${p.timestamp.getTime()}::${p.caption.substring(0, 40)}`);
+
   const result: InstagramPost[] = [];
 
   const typeMap: Array<[string, MediaType]> = [
@@ -373,7 +512,8 @@ function parsePosts(exportFolder: string): InstagramPost[] {
   ];
 
   for (const [file, type] of typeMap) {
-    result.push(...parsePostsFile(path.join(mediaDir, file), type));
+    const parsed = parsePostsFile(path.join(mediaDir, file), type);
+    result.push(...parsed.filter((p) => !isArchived(p)));
   }
 
   return result;
@@ -427,7 +567,10 @@ function parseProfile(
 
 // ─── Metrics computation ──────────────────────────────────────────────────────
 
-function computeFollowerGrowth(followers: InstagramFollower[]): FollowerGrowthPoint[] {
+function computeFollowerGrowth(
+  followers: InstagramFollower[],
+  realFollowerCount?: number
+): FollowerGrowthPoint[] {
   const byMonth = new Map<string, number>();
 
   for (const f of followers) {
@@ -438,7 +581,15 @@ function computeFollowerGrowth(followers: InstagramFollower[]): FollowerGrowthPo
   }
 
   const sorted = [...byMonth.entries()].sort(([a], [b]) => a.localeCompare(b));
-  let cumulative = 0;
+
+  // Offset the cumulative base so the last data point matches the real follower count.
+  // Instagram exports often only contain a subset of followers (1 HTML file = ~1 000 entries),
+  // while the actual total comes from audience_insights.html (e.g. 3 826).
+  const parsedTotal = sorted.reduce((sum, [, gain]) => sum + gain, 0);
+  const base =
+    realFollowerCount && realFollowerCount > parsedTotal ? realFollowerCount - parsedTotal : 0;
+
+  let cumulative = base;
   return sorted.map(([month, gain]) => {
     cumulative += gain;
     return { month, count: cumulative, gain, loss: 0 };
@@ -477,14 +628,28 @@ function computePostingTimes(posts: InstagramPost[]) {
 function computeContentPerformance(
   posts: InstagramPost[],
   ci: ContentInteractions | null,
-  followerCount: number
+  followerCount: number,
+  insightsPeriod?: [Date, Date]
 ): ContentTypePerformance[] {
+  // Filter helper: keep only posts within the insights period (if known)
+  const inPeriod = (p: InstagramPost) =>
+    !insightsPeriod ||
+    (p.timestamp.getTime() >= insightsPeriod[0].getTime() &&
+      p.timestamp.getTime() <= insightsPeriod[1].getTime());
+
   // If real insight data is available, use it to compute accurate per-type metrics
   if (ci) {
     const result: ContentTypePerformance[] = [];
 
-    const reels = posts.filter((p) => p.mediaType === "REEL");
-    const images = posts.filter((p) => p.mediaType === "IMAGE" || p.mediaType === "CAROUSEL");
+    // Only count reels/posts published within the insights period — the interaction totals
+    // in content_interactions.html cover that specific window, not all-time content.
+    // Also exclude test reels (no caption) which never received engagement.
+    const reels = posts.filter(
+      (p) => p.mediaType === "REEL" && p.caption.trim().length > 0 && inPeriod(p)
+    );
+    const images = posts.filter(
+      (p) => (p.mediaType === "IMAGE" || p.mediaType === "CAROUSEL") && inPeriod(p)
+    );
 
     // Use likes+comments as fallback when the interactions field is missing/zero
     const reelEngagement = ci.reels.interactions || ci.reels.likes + ci.reels.comments;
@@ -576,16 +741,33 @@ function computeMetrics(
   let avgComments: number;
   let engagementRate: number;
 
+  // Parse the insights period so we can restrict the denominator to posts published
+  // during the same window that content_interactions.html covers. Older posts and
+  // posts with no follower reach (no caption = test reels) are excluded.
+  const insightsPeriodStr = contentInteractions?.period ?? audienceInsights?.period ?? "";
+  const insightsPeriod = parseInsightPeriod(insightsPeriodStr) ?? undefined;
+
+  const inPeriod = (p: InstagramPost) =>
+    !insightsPeriod ||
+    (p.timestamp.getTime() >= insightsPeriod[0].getTime() &&
+      p.timestamp.getTime() <= insightsPeriod[1].getTime());
+
   if (contentInteractions && followerCount > 0) {
-    // Real data path: use aggregated interactions from content_interactions.html
-    const postCount = posts.filter((p) => p.mediaType !== "STORY").length || posts.length;
-    // Total likes and comments across posts + reels
-    const realLikes = contentInteractions.posts.likes + contentInteractions.reels.likes;
-    const realComments = contentInteractions.posts.comments + contentInteractions.reels.comments;
+    // Real data path: use aggregated interactions from content_interactions.html.
+    // ER is computed on IMAGE/CAROUSEL posts only — reels have a separate distribution
+    // algorithm and would skew the metric for static content performance.
+    const periodImagePosts = posts.filter(
+      (p) => (p.mediaType === "IMAGE" || p.mediaType === "CAROUSEL") && inPeriod(p)
+    );
+    const postCount =
+      periodImagePosts.length ||
+      posts.filter((p) => p.mediaType === "IMAGE" || p.mediaType === "CAROUSEL").length;
+    // Likes and comments from image/carousel posts only
+    const realLikes = contentInteractions.posts.likes;
+    const realComments = contentInteractions.posts.comments;
     avgLikes = postCount > 0 ? realLikes / postCount : 0;
     avgComments = postCount > 0 ? realComments / postCount : 0;
     // Per-post engagement rate: (avgLikes + avgComments) / followers × 100
-    // This is the standard influencer-marketing ER metric
     engagementRate = followerCount > 0 ? ((avgLikes + avgComments) / followerCount) * 100 : 0;
   } else {
     // Fallback: compute from raw post data (only works if likes are populated)
@@ -633,9 +815,14 @@ function computeMetrics(
     if (m) followerGrowthRate = parseFloat(m[1]);
   }
 
-  const growthByMonth = computeFollowerGrowth(followers);
+  const growthByMonth = computeFollowerGrowth(followers, audienceInsights?.followerCount);
   const { bestDays, bestHours } = computePostingTimes(posts);
-  const contentPerf = computeContentPerformance(posts, contentInteractions, followerCount);
+  const contentPerf = computeContentPerformance(
+    posts,
+    contentInteractions,
+    followerCount,
+    insightsPeriod
+  );
 
   // Per-post likes/comments are not available in the HTML export.
   // Sort by most recent timestamp as a meaningful fallback.

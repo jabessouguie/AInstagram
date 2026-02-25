@@ -25,6 +25,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Skeleton } from "@/components/ui/skeleton";
 import { useInstagramData } from "@/hooks/useInstagramData";
 import { formatNumber, formatDate } from "@/lib/utils";
+import { useT } from "@/lib/i18n";
 
 const TYPE_LABELS: Record<string, string> = {
   IMAGE: "📸 Photo",
@@ -36,12 +37,23 @@ const TYPE_LABELS: Record<string, string> = {
 
 export default function CreatorDashboard() {
   const { data, isLoading } = useInstagramData();
+  const t = useT();
 
   const insightsRequest = useMemo(
     () => ({
       metrics: data?.metrics ?? {},
       profile: data?.profile ?? {},
       mode: "creator" as const,
+      // Send up to 20 recent non-story posts with captions for Gemini theme analysis
+      posts: data?.posts
+        ?.filter((p) => p.mediaType !== "STORY" && p.caption.trim().length > 0)
+        .slice(-20)
+        .map((p) => ({
+          caption: p.caption,
+          // Timestamps come back as strings after JSON serialization from the API
+          timestamp: p.timestamp instanceof Date ? p.timestamp.toISOString() : String(p.timestamp),
+          mediaType: p.mediaType,
+        })),
     }),
     [data]
   );
@@ -52,29 +64,37 @@ export default function CreatorDashboard() {
 
       <div className="mx-auto max-w-7xl px-4 py-8 md:px-6">
         {/* Page title */}
-        <div className="mb-8 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mb-8 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <h1 className="text-2xl font-bold">Dashboard Créateur</h1>
+            <h1 className="text-2xl font-bold">{t("dashboard.title")}</h1>
             <p className="text-sm text-muted-foreground">
               {isLoading
-                ? "Chargement des données..."
+                ? t("dashboard.loading")
                 : data
-                  ? `${formatNumber(data.metrics.engagementRate)}% taux d'engagement · Source: ${data.dataSource}`
-                  : "Aucune donnée disponible"}
+                  ? `${formatNumber(data.metrics.engagementRate)}% ${t("kpi.engagementRate").toLowerCase()} · ${t("dashboard.source")}: ${data.dataSource}`
+                  : t("dashboard.noData")}
             </p>
           </div>
           {data && (
-            <Badge variant="outline" className="self-start text-xs sm:self-auto">
-              Mis à jour: {formatDate(new Date(data.parsedAt))}
-            </Badge>
+            <div className="flex flex-wrap gap-2 self-start sm:flex-col sm:items-end">
+              <Badge variant="outline" className="text-xs">
+                {t("dashboard.updatedAt")}: {formatDate(new Date(data.parsedAt))}
+              </Badge>
+              {(data.contentInteractions?.period ?? data.audienceInsights?.period) && (
+                <Badge variant="secondary" className="text-xs">
+                  {t("dashboard.dataPeriod")}:{" "}
+                  {data.contentInteractions?.period ?? data.audienceInsights?.period}
+                </Badge>
+              )}
+            </div>
           )}
         </div>
 
         <Tabs defaultValue="overview" className="space-y-6">
           <TabsList className="grid w-full max-w-md grid-cols-3">
-            <TabsTrigger value="overview">Vue d&apos;ensemble</TabsTrigger>
-            <TabsTrigger value="content">Contenu</TabsTrigger>
-            <TabsTrigger value="audience">Audience</TabsTrigger>
+            <TabsTrigger value="overview">{t("tabs.overview")}</TabsTrigger>
+            <TabsTrigger value="content">{t("tabs.content")}</TabsTrigger>
+            <TabsTrigger value="audience">{t("tabs.audience")}</TabsTrigger>
           </TabsList>
 
           {/* ── Overview Tab ── */}
@@ -86,7 +106,7 @@ export default function CreatorDashboard() {
               ) : (
                 <>
                   <MetricCard
-                    title="Abonnés"
+                    title={t("kpi.followers")}
                     value={data?.profile.followerCount ?? 0}
                     change={data?.metrics.followerGrowthRate}
                     description="vs mois dernier"
@@ -96,7 +116,7 @@ export default function CreatorDashboard() {
                     iconBg="bg-violet-500/10"
                   />
                   <MetricCard
-                    title="Taux d'engagement"
+                    title={t("kpi.engagementRate")}
                     value={data?.metrics.engagementRate ?? 0}
                     change={0.3}
                     description="vs mois dernier"
@@ -106,7 +126,7 @@ export default function CreatorDashboard() {
                     iconBg="bg-pink-500/10"
                   />
                   <MetricCard
-                    title="Likes moyens/post"
+                    title={t("kpi.avgLikes")}
                     value={Math.round(data?.metrics.avgLikesPerPost ?? 0)}
                     icon={Heart}
                     format="number"
@@ -114,7 +134,7 @@ export default function CreatorDashboard() {
                     iconBg="bg-red-500/10"
                   />
                   <MetricCard
-                    title="Commentaires/post"
+                    title={t("kpi.avgComments")}
                     value={Math.round(data?.metrics.avgCommentsPerPost ?? 0)}
                     icon={MessageCircle}
                     format="number"
@@ -152,8 +172,8 @@ export default function CreatorDashboard() {
             {/* Top posts */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-base font-semibold">10 derniers posts</CardTitle>
-                <CardDescription>Posts les plus récents (hors stories)</CardDescription>
+                <CardTitle className="text-base font-semibold">{t("content.topPosts")}</CardTitle>
+                <CardDescription>{t("content.topPostsDesc")}</CardDescription>
               </CardHeader>
               <CardContent>
                 {isLoading ? (
@@ -176,7 +196,7 @@ export default function CreatorDashboard() {
                         </span>
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-xs text-muted-foreground">
-                            {post.caption || "Pas de légende"}
+                            {post.caption || t("content.noCaption")}
                           </p>
                           <p className="text-[10px] text-muted-foreground/60">
                             {formatDate(new Date(post.timestamp))}
@@ -202,7 +222,7 @@ export default function CreatorDashboard() {
               ) : (
                 <>
                   <MetricCard
-                    title="Comptes touchés"
+                    title={t("kpi.accountsReached")}
                     value={
                       data?.reachInsights?.accountsReached ??
                       Math.round(data?.metrics.avgReachPerPost ?? 0)
@@ -215,7 +235,7 @@ export default function CreatorDashboard() {
                     iconBg="bg-cyan-500/10"
                   />
                   <MetricCard
-                    title="Impressions"
+                    title={t("kpi.impressions")}
                     value={data?.reachInsights?.impressions ?? 0}
                     change={data?.reachInsights ? 182 : undefined}
                     description="vs période précédente"
@@ -225,7 +245,7 @@ export default function CreatorDashboard() {
                     iconBg="bg-violet-500/10"
                   />
                   <MetricCard
-                    title="Visites du profil"
+                    title={t("kpi.profileVisits")}
                     value={data?.reachInsights?.profileVisits ?? 0}
                     change={data?.reachInsights ? 19.6 : undefined}
                     description="vs période précédente"
@@ -235,7 +255,7 @@ export default function CreatorDashboard() {
                     iconBg="bg-emerald-500/10"
                   />
                   <MetricCard
-                    title="Comptes interagis"
+                    title={t("kpi.accountsInteracted")}
                     value={data?.contentInteractions?.accountsInteracted ?? 0}
                     change={data?.contentInteractions ? 179 : undefined}
                     description={`${data?.contentInteractions?.nonFollowerInteractionPct ?? 0}% non-abonnés`}

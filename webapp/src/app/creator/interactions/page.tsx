@@ -47,7 +47,7 @@ function CandidateRow({ candidate, tag }: { candidate: UnfollowCandidate; tag?: 
         <p className="truncate font-medium">@{candidate.username}</p>
         <p className="text-xs text-muted-foreground">
           Suivi depuis le{" "}
-          {candidate.followedSince
+          {candidate.followedSince && new Date(candidate.followedSince).getTime() > 0
             ? new Date(candidate.followedSince).toLocaleDateString("fr-FR")
             : "date inconnue"}
           {candidate.lastDmSentAt && (

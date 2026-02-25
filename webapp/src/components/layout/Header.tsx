@@ -12,10 +12,12 @@ import {
   Handshake,
   MessageCircle,
   MessageSquarePlus,
+  LayoutPanelLeft,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { InstagramProfile } from "@/types/instagram";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useT } from "@/lib/i18n";
 
 interface HeaderProps {
   profile?: InstagramProfile;
@@ -25,6 +27,7 @@ interface HeaderProps {
 
 export function Header({ profile, mode, agencyName }: HeaderProps) {
   const { lang, toggle } = useLanguage();
+  const t = useT();
   return (
     <header className="sticky top-0 z-40 border-b border-border/40 bg-background/80 backdrop-blur-xl">
       <div className="flex h-16 items-center justify-between px-4 md:px-6">
@@ -41,7 +44,7 @@ export function Header({ profile, mode, agencyName }: HeaderProps) {
             variant={mode === "creator" ? "default" : "secondary"}
             className="hidden sm:inline-flex"
           >
-            {mode === "creator" ? "Créateur" : "Agence"}
+            {mode === "creator" ? t("header.creator") : t("header.agency")}
           </Badge>
         </div>
 
@@ -49,36 +52,42 @@ export function Header({ profile, mode, agencyName }: HeaderProps) {
         {mode === "creator" && (
           <nav className="hidden items-center gap-1 md:flex">
             <Button variant="ghost" size="sm" className="text-xs" asChild>
-              <Link href="/creator/dashboard">Dashboard</Link>
+              <Link href="/creator/dashboard">{t("nav.dashboard")}</Link>
             </Button>
             <Button variant="ghost" size="sm" className="gap-1.5 text-xs" asChild>
               <Link href="/creator/interactions">
                 <Users className="h-3.5 w-3.5" />
-                Interactions
+                {t("nav.interactions")}
               </Link>
             </Button>
             <Button variant="ghost" size="sm" className="gap-1.5 text-xs" asChild>
               <Link href="/creator/mediakit">
                 <FileText className="h-3.5 w-3.5" />
-                Media Kit
+                {t("nav.mediakit")}
+              </Link>
+            </Button>
+            <Button variant="ghost" size="sm" className="gap-1.5 text-xs" asChild>
+              <Link href="/creator/carousel">
+                <LayoutPanelLeft className="h-3.5 w-3.5" />
+                {t("nav.carousel")}
               </Link>
             </Button>
             <Button variant="ghost" size="sm" className="gap-1.5 text-xs" asChild>
               <Link href="/creator/collabs">
                 <Handshake className="h-3.5 w-3.5" />
-                Collabs
+                {t("nav.collabs")}
               </Link>
             </Button>
             <Button variant="ghost" size="sm" className="gap-1.5 text-xs" asChild>
               <Link href="/creator/responses">
                 <MessageCircle className="h-3.5 w-3.5" />
-                Réponses
+                {t("nav.responses")}
               </Link>
             </Button>
             <Button variant="ghost" size="sm" className="gap-1.5 text-xs" asChild>
               <Link href="/creator/comments">
                 <MessageSquarePlus className="h-3.5 w-3.5" />
-                Commentaires
+                {t("nav.comments")}
               </Link>
             </Button>
           </nav>
@@ -92,7 +101,7 @@ export function Header({ profile, mode, agencyName }: HeaderProps) {
             </Link>
           </Button>
 
-          {/* Language toggle */}
+          {/* Language toggle — shows the language you will switch TO */}
           <Button
             variant="ghost"
             size="sm"
@@ -100,7 +109,7 @@ export function Header({ profile, mode, agencyName }: HeaderProps) {
             className="h-9 w-12 text-xs font-semibold"
             title={lang === "fr" ? "Switch to English" : "Passer en français"}
           >
-            {lang === "fr" ? "FR" : "EN"}
+            {lang === "fr" ? "EN" : "FR"}
           </Button>
 
           <ThemeToggle />
@@ -119,8 +128,8 @@ export function Header({ profile, mode, agencyName }: HeaderProps) {
               </span>
               <span className="mt-0.5 text-[10px] text-muted-foreground">
                 {mode === "creator"
-                  ? `${profile?.followerCount?.toLocaleString("fr-FR") ?? "—"} abonnés`
-                  : "Portfolio"}
+                  ? `${profile?.followerCount?.toLocaleString("fr-FR") ?? "—"} ${t("header.followers")}`
+                  : t("header.portfolio")}
               </span>
             </div>
           </div>

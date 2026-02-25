@@ -39,24 +39,22 @@ function ColorPickerField({
   return (
     <div className="space-y-1">
       <label className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</label>
-      <div className="flex items-center gap-2">
-        <input
-          type="color"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className="h-8 w-10 shrink-0 cursor-pointer rounded border border-border"
-        />
-        <input
-          type="text"
-          value={value}
-          onChange={(e) => {
-            const v = e.target.value;
-            if (/^#[0-9a-fA-F]{0,6}$/.test(v)) onChange(v);
-          }}
-          maxLength={7}
-          className="w-full rounded-md border border-border bg-background px-2 py-1 font-mono text-xs outline-none focus:ring-2 focus:ring-primary/30"
-        />
-      </div>
+      <input
+        type="color"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="h-8 w-full cursor-pointer rounded border border-border"
+      />
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => {
+          const v = e.target.value;
+          if (/^#[0-9a-fA-F]{0,6}$/.test(v)) onChange(v);
+        }}
+        maxLength={7}
+        className="w-full rounded-md border border-border bg-background px-2 py-1 font-mono text-[11px] outline-none focus:ring-2 focus:ring-primary/30"
+      />
     </div>
   );
 }
@@ -273,7 +271,7 @@ export default function MediaKitPage() {
                     />
                   ))}
                 </div>
-                <div className="space-y-2">
+                <div className="grid grid-cols-3 gap-2">
                   <ColorPickerField
                     label="Primaire"
                     value={config.primaryColor}

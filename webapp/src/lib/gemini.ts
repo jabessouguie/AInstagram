@@ -15,7 +15,35 @@ function getClient(): GoogleGenerativeAI {
 }
 
 function buildCreatorPrompt(req: InsightsApiRequest): string {
-  const { metrics, profile } = req;
+  const { metrics, profile, posts } = req;
+
+  // Build caption list for theme analysis (up to 20 recent non-empty captions)
+  const captionsWithMeta =
+    posts && posts.length > 0
+      ? posts
+          .filter((p) => p.caption.trim().length > 0)
+          .slice(0, 20)
+          .map((p, i) => {
+            const d = new Date(p.timestamp);
+            const dayLabel = d.toLocaleDateString("fr-FR", { weekday: "short" });
+            const hourLabel = `${d.getHours()}h`;
+            return `${i + 1}. [${p.mediaType} · ${dayLabel} ${hourLabel}] "${p.caption.substring(0, 180)}"`;
+          })
+          .join("\n")
+      : null;
+
+  // Posting hours distribution for timing analysis
+  const hourDist =
+    metrics.bestPostingHours
+      ?.slice(0, 5)
+      .map((h) => `${h.hour}h (${h.avgEngagement} posts)`)
+      .join(", ") ?? "N/A";
+
+  const dayDist =
+    metrics.bestPostingDays
+      ?.slice(0, 5)
+      .map((d) => `${d.day} (${d.avgEngagement} posts)`)
+      .join(", ") ?? "N/A";
 
   return `Tu es un expert en stratégie Instagram et en marketing digital.
 
@@ -24,7 +52,6 @@ Analyse les données Instagram suivantes d'un créateur de contenu et génère d
 ### Profil
 - Compte : @${profile.username || "inconnu"}
 - Abonnés : ${(profile.followerCount ?? 0).toLocaleString("fr-FR")}
-- Abonnements : ${(profile.followerCount ?? 0).toLocaleString("fr-FR")}
 - Posts : ${profile.postCount ?? 0}
 
 ### Métriques clés
@@ -41,17 +68,28 @@ ${
     .join("\n") ?? "N/A"
 }
 
-### Meilleurs moments de publication
+### Fréquence de publication par heure du jour
+${hourDist}
+
+### Fréquence de publication par jour de la semaine
+${dayDist}
 ${
-  metrics.bestPostingDays
-    ?.slice(0, 3)
-    .map((d) => `- ${d.day}: engagement moyen ${d.avgEngagement?.toFixed(0)}`)
-    .join("\n") ?? "N/A"
+  captionsWithMeta
+    ? `
+### Publications récentes (pour analyse thématique et tonale)
+${captionsWithMeta}
+
+À partir de ces captions, identifie :
+- Les 2-3 thèmes dominants (ex: lifestyle, voyage, fitness, humour, éducation…)
+- Le ton général (inspirationnel, humoristique, informatif, personnel…)
+- Les formats ou accroches qui semblent le mieux résonner`
+    : ""
 }
 
-Génère exactement 5 insights JSON dans ce format (sans markdown, juste le JSON):
+Génère exactement 6 insights JSON dans ce format (sans markdown, juste le JSON).
+Inclus obligatoirement : au moins 1 insight "timing" sur les meilleurs créneaux de publication, et au moins 1 insight "content" sur les thèmes qui plaisent à l'audience (déduit des captions si disponibles).
 {
-  "summary": "Résumé en 2 phrases",
+  "summary": "Résumé en 2 phrases incluant les thèmes forts et le meilleur créneau de publication",
   "insights": [
     {
       "id": "1",

@@ -232,11 +232,58 @@ export interface InsightsApiRequest {
   profile: Partial<InstagramProfile>;
   mode: "creator" | "agency";
   creatorProfile?: Partial<CreatorProfile>;
+  /** Recent posts (caption + timestamp) for theme & timing analysis */
+  posts?: Array<{ caption: string; timestamp: string; mediaType: string }>;
 }
 
 export interface InsightsApiResponse {
   success: boolean;
   data?: InsightsResponse;
+  error?: string;
+}
+
+// ============================================================
+// Carousel Generator Types
+// ============================================================
+
+export interface CarouselFonts {
+  title: string; // e.g. "Playfair Display"
+  subtitle: string; // e.g. "Inter"
+  body: string; // e.g. "Inter"
+}
+
+export interface CarouselAudience {
+  gender: "all" | "female" | "male";
+  region: string; // e.g. "France", "Côte d'Ivoire"
+  interests: string; // comma-separated
+}
+
+export interface CarouselSlideContent {
+  title: string;
+  subtitle: string;
+  body: string;
+  /** Index into the uploaded photos array (0-based). -1 = gradient background */
+  photoIndex: number;
+}
+
+export interface CarouselGenerateRequest {
+  subject: string;
+  audience: CarouselAudience;
+  fonts: CarouselFonts;
+  primaryColor: string; // hex
+  accentColor: string; // hex
+  numSlides: number; // 3-8
+  /** Base64-encoded photos (data:image/...;base64,...) */
+  photos: string[];
+  /** Recent post captions for style analysis */
+  previousCaptions: string[];
+}
+
+export interface CarouselGenerateResponse {
+  success: boolean;
+  slides?: CarouselSlideContent[];
+  instagramDescription?: string;
+  hashtags?: string[];
   error?: string;
 }
 
