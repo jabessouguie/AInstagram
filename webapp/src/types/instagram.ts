@@ -265,6 +265,7 @@ export interface CarouselAudience {
   gender: "all" | "female" | "male";
   region: string; // e.g. "France", "Côte d'Ivoire"
   interests: string; // comma-separated
+  ageRange?: string; // e.g. "18-24", "25-34", "all"
 }
 
 export interface CarouselSlideContent {
@@ -281,13 +282,15 @@ export interface CarouselGenerateRequest {
   fonts: CarouselFonts;
   primaryColor: string; // hex
   accentColor: string; // hex
-  numSlides: number; // 3-8
+  numSlides: number; // 1-20
   /** Base64-encoded photos (data:image/...;base64,...) */
   photos: string[];
   /** Recent post captions for style analysis */
   previousCaptions: string[];
   /** Language for slide text and Instagram description. Defaults to "en". */
   language?: "en" | "fr";
+  /** Gemini model override. Defaults to "gemini-2.5-flash". */
+  model?: string;
 }
 
 export interface CarouselGenerateResponse {
@@ -295,6 +298,36 @@ export interface CarouselGenerateResponse {
   slides?: CarouselSlideContent[];
   instagramDescription?: string;
   hashtags?: string[];
+  error?: string;
+}
+
+export interface ReelGenerateRequest {
+  prompt: string;
+  videoClips?: string[]; // base64 data URLs (video/mp4, video/mov, etc.)
+  durationSeconds?: number; // 5-8 for Veo 3
+  model?: string; // "veo-3.0-fast" | "veo-3.0"
+  language?: "en" | "fr";
+  audience?: CarouselAudience;
+  brandColors?: { primary: string; accent: string };
+  brandFonts?: { title: string; body: string };
+}
+
+export interface ReelGenerateResponse {
+  success: boolean;
+  video?: string; // base64 data URL "data:video/mp4;base64,..."
+  error?: string;
+}
+
+export interface ReelAudioRequest {
+  musicPrompt: string;
+  durationSeconds?: number;
+  bpm?: number;
+  temperature?: number;
+}
+
+export interface ReelAudioResponse {
+  success: boolean;
+  audio?: string; // base64 data URL "data:audio/wav;base64,..."
   error?: string;
 }
 

@@ -22,7 +22,6 @@ interface EngagementChartProps {
 const TYPE_LABELS: Record<string, string> = {
   IMAGE: "Photo",
   REEL: "Reel",
-  STORY: "Story",
   CAROUSEL: "Carousel",
   VIDEO: "Vidéo",
 };
@@ -59,12 +58,14 @@ export function EngagementChart({ data, isLoading }: EngagementChartProps) {
     );
   }
 
-  const chartData = data.map((d) => ({
-    type: d.type,
-    avgLikes: Math.round(d.avgLikes),
-    avgComments: Math.round(d.avgComments),
-    count: d.count,
-  }));
+  const chartData = data
+    .filter((d) => d.type !== "STORY")
+    .map((d) => ({
+      type: d.type,
+      avgLikes: Math.round(d.avgLikes),
+      avgComments: Math.round(d.avgComments),
+      count: d.count,
+    }));
 
   return (
     <Card>

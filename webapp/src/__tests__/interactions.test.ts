@@ -2,6 +2,7 @@
  * Unit tests for the interaction analyser logic.
  * Tests the business rules for classifying accounts.
  */
+export {};
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

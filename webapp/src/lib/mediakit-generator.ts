@@ -16,6 +16,8 @@ export interface MediaKitConfig {
   contactEmail: string;
   ratePerPost?: string; // e.g. "500€"
   profilePicUrl?: string; // URL of the creator's profile picture
+  bannerImageUrl?: string; // URL or data URL for the hero banner background
+  displayName?: string; // Editable display name (overrides profile.fullName)
 }
 
 export const defaultMediaKitConfig: MediaKitConfig = {
@@ -97,6 +99,18 @@ export function generateMediaKitHTML(
       padding: 60px 40px 80px;
       position: relative;
       overflow: hidden;
+    }
+    ${
+      config.bannerImageUrl
+        ? `.hero::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: url("${config.bannerImageUrl}") center/cover no-repeat;
+      opacity: 0.35;
+      pointer-events: none;
+    }`
+        : ""
     }
     .hero::after {
       content: '';
@@ -212,7 +226,7 @@ export function generateMediaKitHTML(
           : profile.username.charAt(0).toUpperCase()
       }</div>
       <div class="hero-text">
-        <h1>${profile.fullName || profile.username}</h1>
+        <h1>${config.displayName || profile.fullName || profile.username}</h1>
         <div class="handle">@${profile.username}</div>
         ${profile.website ? `<div class="handle" style="font-size:0.85rem; margin-top:2px;">🌐 ${profile.website}</div>` : ""}
         <div class="tagline">${config.tagline}</div>

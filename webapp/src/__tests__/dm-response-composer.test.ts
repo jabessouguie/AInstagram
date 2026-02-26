@@ -3,6 +3,7 @@
  * Tests the filtering logic for unanswered DMs.
  * File system access is avoided — pure logic is extracted and tested inline.
  */
+export {};
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

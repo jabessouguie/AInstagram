@@ -8,7 +8,7 @@ import type {
 
 export const dynamic = "force-dynamic";
 
-const MODEL_NAME = "gemini-2.5-flash";
+const DEFAULT_MODEL = "gemini-2.5-flash";
 
 function buildCarouselPrompt(req: CarouselGenerateRequest): string {
   const { subject, audience, fonts, numSlides, previousCaptions, language = "en" } = req;
@@ -26,7 +26,10 @@ function buildCarouselPrompt(req: CarouselGenerateRequest): string {
   const genderLabel =
     audience.gender === "female" ? "women" : audience.gender === "male" ? "men" : "everyone";
 
-  const audienceDesc = [genderLabel, audience.region, audience.interests]
+  const ageLabel =
+    audience.ageRange && audience.ageRange !== "all" ? `age ${audience.ageRange}` : null;
+
+  const audienceDesc = [genderLabel, ageLabel, audience.region, audience.interests]
     .filter(Boolean)
     .join(", ");
 
@@ -59,7 +62,7 @@ ${captionsSection}
 - NEVER capitalise common nouns mid-sentence (e.g. write "the best travel tips", not "the best Travel Tips")
 - NEVER capitalise after a colon (e.g. "what worked: keep it simple", not "what worked: Keep It Simple")
 - No exclamation marks in titles unless genuinely needed
-- photoIndex: rotate 0, 1, 2… (modulo number of available photos)
+- photoIndex: choose the photo that best matches the slide content (0-based index into available photos). If no photos are available, use -1. DO NOT just rotate — pick the most relevant photo for each slide's topic.
 
 ### Instagram description rules (also in ${lang})
 - Structure: scroll-stopping hook (1 sentence) → 1–2 lines of context or strong opinion → 1–3 practical tips → CTA
@@ -142,7 +145,7 @@ export async function POST(request: Request): Promise<NextResponse<CarouselGener
 
     if (body.photos.length > 0) {
       parts.push({
-        text: "Voici les photos fournies par le créateur pour le carrousel. Analyse leur style visuel (couleurs dominantes, ambiance, composition) pour aligner le contenu textuel.\n",
+        text: `Here are ${body.photos.length} photos provided by the creator (indexed 0 to ${body.photos.length - 1}). For each slide, set photoIndex to the photo that best matches the slide's topic and mood. Analyse their visual style to align the text content.\n`,
       });
       // Send up to 3 photos to Gemini for visual analysis
       for (const photo of body.photos.slice(0, 3)) {
@@ -161,7 +164,7 @@ export async function POST(request: Request): Promise<NextResponse<CarouselGener
       parts.push({ text: buildCarouselPrompt(body) });
     }
 
-    const model = genAI.getGenerativeModel({ model: MODEL_NAME });
+    const model = genAI.getGenerativeModel({ model: body.model ?? DEFAULT_MODEL });
     const result = await model.generateContent(parts);
     const text = result.response
       .text()

@@ -67,6 +67,39 @@ function buildCreatorPrompt(req: InsightsApiRequest): string {
             ? "mid-tier (50k–200k)"
             : "macro-créateur (>200k)";
 
+  // ── Most active days (from dailyActivity) ─────────────────────────────────
+  let dailyActivitySection = "";
+  if (audienceInsights?.dailyActivity && Object.keys(audienceInsights.dailyActivity).length > 0) {
+    const sorted = Object.entries(audienceInsights.dailyActivity)
+      .sort(([, a], [, b]) => b - a);
+    const topDay = sorted[0]?.[0];
+    const bottomDay = sorted[sorted.length - 1]?.[0];
+    const dayList = sorted.map(([day, count]) => `${day}: ${count}`).join(", ");
+    dailyActivitySection = `
+### Activité des followers par jour
+${dayList}
+→ Jour le plus actif : ${topDay ?? "N/A"} | Jour le moins actif : ${bottomDay ?? "N/A"}`;
+  }
+
+  // ── Period-over-period changes (algorithm change signal) ───────────────────
+  let periodChangeSection = "";
+  const changeSignals: string[] = [];
+  if (contentInteractions?.totalInteractionsChange)
+    changeSignals.push(`Interactions totales : ${contentInteractions.totalInteractionsChange}`);
+  if (contentInteractions?.accountsInteractedChange)
+    changeSignals.push(`Comptes ayant interagi : ${contentInteractions.accountsInteractedChange}`);
+  if (reachInsights?.accountsReachedChange)
+    changeSignals.push(`Comptes touchés : ${reachInsights.accountsReachedChange}`);
+  if (reachInsights?.impressionsChange)
+    changeSignals.push(`Impressions : ${reachInsights.impressionsChange}`);
+  if (reachInsights?.profileVisitsChange)
+    changeSignals.push(`Visites profil : ${reachInsights.profileVisitsChange}`);
+  if (changeSignals.length > 0) {
+    periodChangeSection = `
+### Évolution période sur période (signal algorithmique)
+${changeSignals.join("\n")}`;
+  }
+
   // ── Audience demographics ─────────────────────────────────────────────────
   let audienceSection = "";
   if (audienceInsights) {
@@ -159,11 +192,11 @@ Analyse les données Instagram ci-dessous et génère des insights ULTRA-PERSONN
 - Likes moyens/post : ${Math.round(metrics.avgLikesPerPost ?? 0)}
 - Commentaires moyens/post : ${Math.round(metrics.avgCommentsPerPost ?? 0)}
 - Croissance abonnés : ${metrics.followerGrowthRate?.toFixed(1) ?? "N/A"}%
-${audienceSection}${interactionsSection}${reachSection}
+${audienceSection}${interactionsSection}${reachSection}${dailyActivitySection}${periodChangeSection}
 
 ### Timing de publication
-- Heures les plus actives : ${hourDist}
-- Jours les plus actifs : ${dayDist}
+- Heures les plus actives (basé sur les posts) : ${hourDist}
+- Jours les plus actifs (basé sur les posts) : ${dayDist}
 
 ### Performance par type de contenu
 ${
@@ -181,6 +214,7 @@ ${nicheHint}
 À partir de ces captions, identifie :
 - La niche principale du créateur
 - Le ton général (inspirationnel, humoristique, informatif, personnel, éducatif…)
+- Les thèmes/sujets qui semblent générer le plus d'engagement (repère les mots-clés récurrents dans les captions les plus récentes)
 - Les accroches et formats qui génèrent le plus d'engagement`
     : ""
 }
@@ -188,10 +222,11 @@ ${nicheHint}
 Génère exactement 6 insights JSON hyper-personnalisés (sans markdown, juste le JSON).
 Chaque insight doit mentionner des chiffres réels issus des données, citer la niche et/ou l'audience, et donner une recommandation concrète et spécifique.
 Inclus obligatoirement :
-- 1 insight "timing" sur les meilleurs créneaux selon les données
-- 1 insight "content" sur les thèmes/formats qui plaisent à cette audience spécifique
+- 1 insight "timing" sur le meilleur jour/créneau selon les données d'activité des followers (utilise la section "Activité des followers par jour" si disponible)
+- 1 insight "content" sur les thèmes/formats qui plaisent à cette audience (identifie 2-3 thèmes récurrents dans les captions et leur performance relative)
 - 1 insight "audience" sur la démographie et la localisation
 - 1 insight sur les saves/partages (viralité potentielle)
+- 1 insight "strategy" sur l'évolution algorithmique : si les données période sur période montrent une variation supérieure à ±30%, analyse si cela reflète un changement d'algorithme ou une évolution de stratégie, et recommande comment en profiter ou s'adapter
 
 {
   "summary": "Résumé en 2 phrases : niche identifiée + insight principal chiffré + meilleur levier de croissance",

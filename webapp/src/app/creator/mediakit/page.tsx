@@ -139,6 +139,7 @@ export default function MediaKitPage() {
     t("mediakit.gen.status.rate"),
     t("mediakit.gen.status.finalise"),
   ];
+  const [aiModel, setAiModel] = useState("gemini-2.5-flash");
   const [config, setConfig] = useState<MediaKitConfig>(defaultMediaKitConfig);
   const [newService, setNewService] = useState("");
   const [activeTab, setActiveTab] = useState<"edit" | "preview">("edit");
@@ -148,6 +149,7 @@ export default function MediaKitPage() {
   const generatingStatus = useAnimatedStatus(isGenerating, MEDIAKIT_GEN_STATUSES);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
+  const bannerInputRef = useRef<HTMLInputElement>(null);
 
   // Initialise config from real data when loaded
   useEffect(() => {
@@ -159,6 +161,7 @@ export default function MediaKitPage() {
           : `contact@${data.profile.username}.com`,
         tagline: data.profile.bio?.split("\n")[0] ?? c.tagline,
         profilePicUrl: data.profile.profilePicUrl ?? c.profilePicUrl,
+        displayName: c.displayName || data.profile.fullName || data.profile.username,
       }));
     }
   }, [data?.profile]);
@@ -202,6 +205,7 @@ export default function MediaKitPage() {
             .slice(0, 10)
             .map((p) => ({ caption: p.caption })),
           feedback,
+          model: aiModel,
         };
 
         const res = await fetch("/api/mediakit/generate", {
@@ -228,7 +232,7 @@ export default function MediaKitPage() {
         setIsGenerating(false);
       }
     },
-    [data, config.contactEmail, isGenerating]
+    [data, config.contactEmail, isGenerating, aiModel]
   );
 
   const handleDownloadHTML = useCallback(() => {
@@ -278,6 +282,20 @@ export default function MediaKitPage() {
       reader.onload = (e) => {
         const dataUrl = e.target?.result as string;
         if (dataUrl) updateConfig("profilePicUrl", dataUrl);
+      };
+      reader.readAsDataURL(file);
+    },
+    [updateConfig]
+  );
+
+  const handleBannerUpload = useCallback(
+    (files: FileList | null) => {
+      if (!files || files.length === 0) return;
+      const file = files[0];
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const dataUrl = e.target?.result as string;
+        if (dataUrl) updateConfig("bannerImageUrl", dataUrl);
       };
       reader.readAsDataURL(file);
     },
@@ -370,6 +388,37 @@ export default function MediaKitPage() {
         <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
           {/* ── Editor sidebar ── */}
           <div className={`space-y-4 ${activeTab === "preview" ? "hidden lg:block" : ""}`}>
+            {/* Model selector */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-semibold">{t("model.selector.label")}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 gap-2">
+                  {(
+                    [
+                      ["gemini-2.5-flash", t("model.flash25.label"), t("model.flash25.desc")],
+                      ["gemini-2.5-pro", t("model.pro25.label"), t("model.pro25.desc")],
+                    ] as const
+                  ).map(([id, label, desc]) => (
+                    <button
+                      key={id}
+                      onClick={() => setAiModel(id)}
+                      title={desc}
+                      className={`flex flex-col items-start rounded-lg border px-3 py-2 text-left transition-colors ${
+                        aiModel === id
+                          ? "border-primary bg-primary/10 text-foreground"
+                          : "border-border text-muted-foreground hover:border-primary/50"
+                      }`}
+                    >
+                      <span className="text-xs font-semibold">{label}</span>
+                      <span className="text-[10px] leading-tight opacity-70">{desc}</span>
+                    </button>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
             {/* Color presets */}
             <Card>
               <CardHeader className="pb-3">
@@ -465,19 +514,19 @@ export default function MediaKitPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
+                {/* Display name */}
+                <LabeledInput
+                  label={t("mediakit.identity.displayName")}
+                  value={config.displayName ?? ""}
+                  onChange={(v) => updateConfig("displayName", v)}
+                  placeholder={data?.profile.fullName || data?.profile.username || ""}
+                />
                 {/* Profile photo */}
                 <div className="space-y-1.5">
                   <label className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
                     <ImageIcon className="h-3 w-3" />
                     {t("mediakit.identity.profilePic")}
                   </label>
-                  <input
-                    type="url"
-                    value={config.profilePicUrl ?? ""}
-                    onChange={(e) => updateConfig("profilePicUrl", e.target.value)}
-                    placeholder="https://..."
-                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/30"
-                  />
                   <div className="flex items-center gap-2">
                     <input
                       ref={photoInputRef}
@@ -505,6 +554,48 @@ export default function MediaKitPage() {
                       />
                     )}
                   </div>
+                </div>
+                {/* Banner image */}
+                <div className="space-y-1.5">
+                  <label className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                    <ImageIcon className="h-3 w-3" />
+                    {t("mediakit.identity.banner")}
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      ref={bannerInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => handleBannerUpload(e.target.files)}
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full text-xs"
+                      onClick={() => bannerInputRef.current?.click()}
+                    >
+                      <Upload className="h-3 w-3" />
+                      {t("mediakit.identity.uploadBanner")}
+                    </Button>
+                    {config.bannerImageUrl && (
+                      <button
+                        onClick={() => updateConfig("bannerImageUrl", undefined as unknown as string)}
+                        className="text-xs text-muted-foreground hover:text-destructive"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
+                  {config.bannerImageUrl && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={config.bannerImageUrl}
+                      alt="Banner"
+                      className="h-16 w-full rounded-md border border-border object-cover"
+                      onError={(e) => (e.currentTarget.style.display = "none")}
+                    />
+                  )}
                 </div>
                 <LabeledInput
                   label={t("mediakit.identity.tagline")}

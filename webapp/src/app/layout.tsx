@@ -2,13 +2,6 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
-import dynamic from "next/dynamic";
-
-// Load client-only — avoids SSR hydration mismatch for a floating overlay
-const BugReportButton = dynamic(
-  () => import("@/components/BugReportButton").then((m) => m.BugReportButton),
-  { ssr: false }
-);
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
@@ -52,7 +45,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className={`${inter.variable} font-sans`} suppressHydrationWarning>
         <Providers>
           {children}
-          <BugReportButton />
         </Providers>
       </body>
     </html>

@@ -39,8 +39,8 @@ export function BestPostingTimes({ days, hours, isLoading }: BestPostingTimesPro
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base font-semibold">Moments de publication</CardTitle>
-        <CardDescription>Fréquence de publication par créneau</CardDescription>
+        <CardTitle className="text-base font-semibold">Quand tu publies</CardTitle>
+        <CardDescription>Nombre de posts par jour et créneau horaire (hors stories)</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
         {/* Days */}
@@ -69,8 +69,8 @@ export function BestPostingTimes({ days, hours, isLoading }: BestPostingTimesPro
                       style={{ width: `${pct}%` }}
                     />
                   </div>
-                  <span className="w-10 shrink-0 text-right text-xs font-medium tabular-nums">
-                    {Math.round(d.avgEngagement)}
+                  <span className="w-14 shrink-0 text-right text-xs font-medium tabular-nums text-muted-foreground">
+                    {Math.round(d.avgEngagement)} post{Math.round(d.avgEngagement) !== 1 ? "s" : ""}
                   </span>
                 </div>
               );

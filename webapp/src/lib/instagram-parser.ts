@@ -21,6 +21,7 @@ import type {
   ContentInteractions,
   ReachInsights,
 } from "@/types/instagram";
+import { isJsonExport, parseJsonExport } from "@/lib/instagram-json-parser";
 
 // ─── Path helpers ────────────────────────────────────────────────────────────
 
@@ -31,18 +32,32 @@ function getDataRoot(): string {
   return path.join(process.cwd(), "..", "data");
 }
 
-/** Return the first Instagram export folder found in data/ */
+/** Return the first Instagram export folder found in data/ (also checks data/html/ and data/json/) */
 function findExportFolder(): string | null {
   const root = getDataRoot();
   if (!fs.existsSync(root)) return null;
 
+  // Search directly under data/
   const entries = fs.readdirSync(root);
-  const folder = entries.find((e) => {
+  const direct = entries.find((e) => {
     const full = path.join(root, e);
     return fs.statSync(full).isDirectory() && e.startsWith("instagram-");
   });
+  if (direct) return path.join(root, direct);
 
-  return folder ? path.join(root, folder) : null;
+  // Also check data/html/ and data/json/ subdirectories
+  for (const sub of ["html", "json"]) {
+    const subDir = path.join(root, sub);
+    if (!fs.existsSync(subDir)) continue;
+    const subEntries = fs.readdirSync(subDir);
+    const found = subEntries.find((e) => {
+      const full = path.join(subDir, e);
+      return fs.statSync(full).isDirectory() && e.startsWith("instagram-");
+    });
+    if (found) return path.join(subDir, found);
+  }
+
+  return null;
 }
 
 // ─── HTML parser helpers ──────────────────────────────────────────────────────
@@ -682,20 +697,6 @@ function computeContentPerformance(
       });
     }
 
-    const storyEngagement = ci.stories.interactions || ci.stories.replies;
-    if (storyEngagement > 0) {
-      const storyCount = posts.filter((p) => p.mediaType === "STORY").length || 1;
-      result.push({
-        type: "STORY",
-        avgEngagement: storyEngagement / storyCount,
-        avgLikes: 0,
-        avgComments: ci.stories.replies / storyCount,
-        count: storyCount,
-        engagementRate:
-          followerCount > 0 ? (storyEngagement / storyCount / followerCount) * 100 : 0,
-      });
-    }
-
     if (result.length > 0) return result;
   }
 
@@ -725,7 +726,7 @@ function computeContentPerformance(
   });
 }
 
-function computeMetrics(
+export function computeMetrics(
   followers: InstagramFollower[],
   following: InstagramFollower[],
   posts: InstagramPost[],
@@ -868,6 +869,11 @@ function computeMetrics(
 export async function parseInstagramExport(): Promise<InstagramAnalytics | null> {
   const exportFolder = findExportFolder();
   if (!exportFolder) return null;
+
+  // Detect JSON format and delegate to the JSON parser
+  if (isJsonExport(exportFolder)) {
+    return parseJsonExport(exportFolder, computeMetrics);
+  }
 
   try {
     const followers = parseFollowers(exportFolder);

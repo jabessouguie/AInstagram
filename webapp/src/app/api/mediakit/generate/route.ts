@@ -3,7 +3,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 
 export const dynamic = "force-dynamic";
 
-const MODEL_NAME = "gemini-2.5-flash";
+const DEFAULT_MODEL = "gemini-2.5-flash";
 
 export interface MediaKitGenerateRequest {
   username: string;
@@ -16,6 +16,7 @@ export interface MediaKitGenerateRequest {
   topCountries?: string[];
   posts?: Array<{ caption: string }>;
   feedback?: string;
+  model?: string;
 }
 
 export interface MediaKitGenerateResponse {
@@ -103,7 +104,7 @@ Réponds UNIQUEMENT avec ce JSON (sans markdown) :
 }${feedback ? `\n\nRetours utilisateur sur la version précédente : ${feedback}` : ""}`;
 
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: MODEL_NAME });
+    const model = genAI.getGenerativeModel({ model: body.model ?? DEFAULT_MODEL });
     const result = await model.generateContent(prompt);
     const text = result.response
       .text()
