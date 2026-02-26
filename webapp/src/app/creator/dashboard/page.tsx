@@ -15,6 +15,7 @@ import {
   Upload,
   Calendar,
   Filter,
+  Loader2,
 } from "lucide-react";
 import { Header } from "@/components/layout/Header";
 import { MetricCard, MetricCardSkeleton } from "@/components/dashboard/MetricCard";
@@ -243,19 +244,27 @@ export default function CreatorDashboard() {
                 ))}
                 {period === "custom" && (
                   <div className="ml-2 flex items-center gap-2 pr-2">
-                    <input
-                      type="date"
-                      className="rounded border border-border bg-background px-2 py-0.5 text-xs outline-none focus:ring-1 focus:ring-primary/30"
-                      value={dateRange.from || ""}
-                      onChange={(e) => setDateRange((prev) => ({ ...prev, from: e.target.value }))}
-                    />
-                    <span className="text-muted-foreground">→</span>
-                    <input
-                      type="date"
-                      className="rounded border border-border bg-background px-2 py-0.5 text-xs outline-none focus:ring-1 focus:ring-primary/30"
-                      value={dateRange.to || ""}
-                      onChange={(e) => setDateRange((prev) => ({ ...prev, to: e.target.value }))}
-                    />
+                    <div className="flex items-center gap-1.5">
+                      <label htmlFor="date-from" className="sr-only">Date de début</label>
+                      <input
+                        id="date-from"
+                        type="date"
+                        className="rounded border border-border bg-background px-2 py-0.5 text-xs outline-none focus:ring-1 focus:ring-primary/30"
+                        value={dateRange.from || ""}
+                        onChange={(e) => setDateRange((prev) => ({ ...prev, from: e.target.value }))}
+                      />
+                    </div>
+                    <span className="text-muted-foreground" aria-hidden="true">→</span>
+                    <div className="flex items-center gap-1.5">
+                      <label htmlFor="date-to" className="sr-only">Date de fin</label>
+                      <input
+                        id="date-to"
+                        type="date"
+                        className="rounded border border-border bg-background px-2 py-0.5 text-xs outline-none focus:ring-1 focus:ring-primary/30"
+                        value={dateRange.to || ""}
+                        onChange={(e) => setDateRange((prev) => ({ ...prev, to: e.target.value }))}
+                      />
+                    </div>
                   </div>
                 )}
               </div>
@@ -277,7 +286,16 @@ export default function CreatorDashboard() {
         {/* Zip upload */}
         <div className="mb-6">
           <div
+            role="button"
+            tabIndex={0}
+            aria-label={t("upload.dropzone")}
             onClick={() => !isUploading && zipInputRef.current?.click()}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                !isUploading && zipInputRef.current?.click();
+              }
+            }}
             onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
             onDrop={(e) => {
               e.preventDefault();
@@ -286,7 +304,7 @@ export default function CreatorDashboard() {
               const files = Array.from(e.dataTransfer.files);
               if (files.length > 0) handleZipUpload(files);
             }}
-            className={`flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed py-4 text-sm transition-colors ${isUploading ? "border-primary/40 bg-primary/5" : "border-border text-muted-foreground hover:border-primary/50 hover:text-foreground"}`}
+            className={`flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed py-4 text-sm transition-all focus:outline-none focus:ring-2 focus:ring-primary/20 ${isUploading ? "border-primary/40 bg-primary/5" : "border-border text-muted-foreground hover:border-primary/50 hover:text-foreground"}`}
           >
             {isUploading ? (
               <>
@@ -405,10 +423,12 @@ export default function CreatorDashboard() {
             </div>
 
             {/* Followers chart */}
-            <FollowersChart
-              data={data?.metrics.followerGrowthByMonth ?? []}
-              isLoading={isLoading}
-            />
+            <div role="region" aria-label="Évolution des abonnés">
+              <FollowersChart
+                data={data?.metrics.followerGrowthByMonth ?? []}
+                isLoading={isLoading}
+              />
+            </div>
 
             {/* AI Insights */}
             <InsightsPanel request={insightsRequest} />
@@ -461,8 +481,13 @@ export default function CreatorDashboard() {
                       onClick={handleQuery}
                       disabled={isQuerying || !queryInput.trim()}
                       className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+                      aria-label={isQuerying ? "Analyse en cours" : "Poser la question"}
                     >
-                      <Send className="h-4 w-4" />
+                      {isQuerying ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Send className="h-4 w-4" />
+                      )}
                     </button>
                   </div>
                 </CardContent>
@@ -503,10 +528,10 @@ export default function CreatorDashboard() {
                     ))}
                   </div>
                 ) : (
-                  <div className="divide-y divide-border/50">
+                  <ul className="divide-y divide-border/50">
                     {(data?.metrics.topPosts ?? []).map((post, i) => (
-                      <div key={post.id} className="flex items-center gap-3 py-2.5 text-sm">
-                        <span className="w-5 shrink-0 text-center text-xs font-bold text-muted-foreground">
+                      <li key={post.id} className="flex items-center gap-3 py-2.5 text-sm">
+                        <span className="w-5 shrink-0 text-center text-xs font-bold text-muted-foreground" aria-hidden="true">
                           {i + 1}
                         </span>
                         <div className="min-w-0 flex-1">
@@ -520,9 +545,9 @@ export default function CreatorDashboard() {
                         <Badge variant="outline" className="shrink-0 text-[10px]">
                           {TYPE_LABELS[post.mediaType] ?? post.mediaType}
                         </Badge>
-                      </div>
+                      </li>
                     ))}
-                  </div>
+                  </ul>
                 )}
               </CardContent>
             </Card>

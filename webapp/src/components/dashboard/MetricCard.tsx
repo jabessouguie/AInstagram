@@ -21,8 +21,8 @@ export function MetricCard({
   change,
   description,
   icon: Icon,
-  iconColor = "text-violet-400",
-  iconBg = "bg-violet-500/10",
+  iconColor = "text-primary",
+  iconBg = "bg-primary/10",
   format = "raw",
 }: MetricCardProps) {
   const formattedValue =
@@ -44,40 +44,46 @@ export function MetricCard({
 
   return (
     <Card className="relative overflow-hidden transition-all hover:shadow-md">
-      {/* Subtle gradient accent */}
+      {/* Subtle background pattern/accent */}
       <div
         className={cn(
-          "absolute right-0 top-0 h-20 w-20 rounded-bl-full opacity-5",
-          iconBg.replace("bg-", "bg-")
+          "absolute -right-4 -top-4 h-24 w-24 rounded-full opacity-[0.03] transition-transform group-hover:scale-110",
+          iconBg
         )}
+        aria-hidden="true"
       />
 
       <CardContent className="p-5">
         <div className="flex items-start justify-between">
           <div className="flex-1">
-            <p className="mb-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+            <h3 className="mb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
               {title}
+            </h3>
+            <p className="text-2xl font-bold tracking-tight text-foreground md:text-3xl">
+              {formattedValue}
             </p>
-            <p className="text-2xl font-bold text-foreground md:text-3xl">{formattedValue}</p>
 
             {(change !== undefined || description) && (
               <div className="mt-2 flex items-center gap-1.5">
                 {change !== undefined && (
-                  <>
-                    <TrendIcon className={cn("h-3.5 w-3.5", trendColor)} />
-                    <span className={cn("text-xs font-medium", trendColor)}>
-                      {formatPercent(change)}
+                  <div className={cn("flex items-center gap-0.5 rounded-full px-1.5 py-0.5",
+                    change > 0 ? "bg-emerald-500/10" : change < 0 ? "bg-red-500/10" : "bg-muted")}>
+                    <TrendIcon className={cn("h-3 w-3", trendColor)} />
+                    <span className={cn("text-[10px] font-bold", trendColor)}>
+                      {formatPercent(Math.abs(change))}
                     </span>
-                  </>
+                  </div>
                 )}
                 {description && (
-                  <span className="text-xs text-muted-foreground">{description}</span>
+                  <span className="text-[10px] font-medium text-muted-foreground">
+                    {description}
+                  </span>
                 )}
               </div>
             )}
           </div>
 
-          <div className={cn("rounded-xl p-2.5", iconBg)}>
+          <div className={cn("flex h-10 w-10 items-center justify-center rounded-xl transition-colors", iconBg)}>
             <Icon className={cn("h-5 w-5", iconColor)} />
           </div>
         </div>

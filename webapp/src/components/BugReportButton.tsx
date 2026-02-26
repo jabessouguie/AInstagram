@@ -134,11 +134,10 @@ export function BugReportButton() {
   if (!open) {
     return (
       <button
-        onClick={() => setOpen(true)}
-        title="Signaler un bug"
+        aria-label="Signaler un bug"
         className="fixed bottom-5 right-5 z-50 flex h-11 w-11 items-center justify-center rounded-full border border-border bg-background shadow-lg transition-all hover:scale-105 hover:border-red-400 hover:text-red-400"
       >
-        <Bug className="h-4 w-4" />
+        <Bug className="h-4 w-4" aria-hidden="true" />
       </button>
     );
   }
@@ -174,7 +173,7 @@ export function BugReportButton() {
                 rel="noopener noreferrer"
                 className="text-xs text-violet-400 underline"
               >
-                Voir l&apos;issue GitLab →
+                Voir l&apos;issue GitHub →
               </a>
             )}
             <Button
@@ -279,7 +278,7 @@ export function BugReportButton() {
             />
 
             <p className="text-[10px] text-muted-foreground">
-              L&apos;IA analysera la capture et créera automatiquement une issue GitLab.
+              L&apos;IA analysera la capture et créera automatiquement une issue GitHub.
             </p>
 
             <Button

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { ThemeToggle } from "./ThemeToggle";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -12,6 +13,8 @@ import {
   Handshake,
   MessageSquarePlus,
   LayoutPanelLeft,
+  Menu,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { InstagramProfile } from "@/types/instagram";
@@ -25,8 +28,18 @@ interface HeaderProps {
 }
 
 export function Header({ profile, mode, agencyName }: HeaderProps) {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { lang, toggle } = useLanguage();
   const t = useT();
+
+  const navLinks = [
+    { href: "/creator/dashboard", label: t("nav.dashboard"), icon: null },
+    { href: "/creator/interactions", label: t("nav.interactions"), icon: Users },
+    { href: "/creator/mediakit", label: t("nav.mediakit"), icon: FileText },
+    { href: "/creator/carousel", label: t("nav.carousel"), icon: LayoutPanelLeft },
+    { href: "/creator/collabs", label: t("nav.collabs"), icon: Handshake },
+    { href: "/creator/comments", label: t("nav.comments"), icon: MessageSquarePlus },
+  ];
   return (
     <header className="sticky top-0 z-40 border-b border-border/40 bg-background/80 backdrop-blur-xl">
       <div className="flex h-16 items-center justify-between px-4 md:px-6">
@@ -49,41 +62,29 @@ export function Header({ profile, mode, agencyName }: HeaderProps) {
 
         {/* Center: Nav links (creator mode) */}
         {mode === "creator" && (
-          <nav className="hidden items-center gap-1 md:flex">
-            <Button variant="ghost" size="sm" className="text-xs" asChild>
-              <Link href="/creator/dashboard">{t("nav.dashboard")}</Link>
+          <>
+            <nav className="hidden items-center gap-1 md:flex">
+              {navLinks.map((link) => (
+                <Button key={link.href} variant="ghost" size="sm" className="gap-1.5 text-xs" asChild>
+                  <Link href={link.href}>
+                    {link.icon && <link.icon className="h-3.5 w-3.5" />}
+                    {link.label}
+                  </Link>
+                </Button>
+              ))}
+            </nav>
+
+            {/* Mobile menu toggle */}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="md:hidden"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
+            >
+              {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </Button>
-            <Button variant="ghost" size="sm" className="gap-1.5 text-xs" asChild>
-              <Link href="/creator/interactions">
-                <Users className="h-3.5 w-3.5" />
-                {t("nav.interactions")}
-              </Link>
-            </Button>
-            <Button variant="ghost" size="sm" className="gap-1.5 text-xs" asChild>
-              <Link href="/creator/mediakit">
-                <FileText className="h-3.5 w-3.5" />
-                {t("nav.mediakit")}
-              </Link>
-            </Button>
-            <Button variant="ghost" size="sm" className="gap-1.5 text-xs" asChild>
-              <Link href="/creator/carousel">
-                <LayoutPanelLeft className="h-3.5 w-3.5" />
-                {t("nav.carousel")}
-              </Link>
-            </Button>
-            <Button variant="ghost" size="sm" className="gap-1.5 text-xs" asChild>
-              <Link href="/creator/collabs">
-                <Handshake className="h-3.5 w-3.5" />
-                {t("nav.collabs")}
-              </Link>
-            </Button>
-            <Button variant="ghost" size="sm" className="gap-1.5 text-xs" asChild>
-              <Link href="/creator/comments">
-                <MessageSquarePlus className="h-3.5 w-3.5" />
-                {t("nav.comments")}
-              </Link>
-            </Button>
-          </nav>
+          </>
         )}
 
         {/* Right: Profile + Theme */}
@@ -128,6 +129,32 @@ export function Header({ profile, mode, agencyName }: HeaderProps) {
           </div>
         </div>
       </div>
+
+      {/* Mobile Menu Overlay */}
+      {mobileMenuOpen && mode === "creator" && (
+        <div className="fixed inset-x-0 top-16 z-50 animate-in fade-in slide-in-from-top-4 md:hidden">
+          <div className="border-b border-border bg-background/95 p-4 backdrop-blur-lg shadow-xl">
+            <nav className="flex flex-col gap-2">
+              {navLinks.map((link) => (
+                <Button
+                  key={link.href}
+                  variant="ghost"
+                  className="justify-start gap-3 px-4 py-6 text-sm"
+                  asChild
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  <Link href={link.href}>
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted">
+                      {link.icon ? <link.icon className="h-4 w-4" /> : <Home className="h-4 w-4" />}
+                    </div>
+                    {link.label}
+                  </Link>
+                </Button>
+              ))}
+            </nav>
+          </div>
+        </div>
+      )}
     </header>
   );
 }
