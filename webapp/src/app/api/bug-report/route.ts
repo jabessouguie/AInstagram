@@ -30,9 +30,8 @@ export async function POST(request: Request): Promise<NextResponse<BugReportResp
     }
 
     const geminiKey = process.env.GEMINI_API_KEY;
-    const gitlabToken = process.env.GITLAB_TOKEN;
-    const gitlabProjectId = process.env.GITLAB_PROJECT_ID;
-    const gitlabUrl = process.env.GITLAB_URL ?? "https://gitlab.com";
+    const githubToken = process.env.GITHUB_TOKEN;
+    const githubRepo = process.env.GITHUB_REPO; // "owner/repo"
 
     // ── Step 1: Analyse with Gemini ───────────────────────────────────────────
     let issueTitle = "Bug signalé par un utilisateur";
@@ -40,7 +39,7 @@ export async function POST(request: Request): Promise<NextResponse<BugReportResp
 
     if (geminiKey) {
       const genAI = new GoogleGenerativeAI(geminiKey);
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" }); // Standardize to 1.5-flash
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
       const contextText = [
         pageUrl ? `Page : ${pageUrl}` : "",
@@ -103,71 +102,81 @@ Réponds UNIQUEMENT avec ce JSON (sans markdown) :
       issueBody = `**Description :** ${description ?? "—"}\n\n**Page :** ${pageUrl ?? "N/A"}\n**Navigateur :** ${userAgent ?? "N/A"}`;
     }
 
-    // ── Step 2: Handle Video Upload to GitLab ─────────────────────────────────
-    let videoMarkdown = "";
-    if (video && gitlabToken && gitlabProjectId) {
-      try {
-        const encodedProjectId = encodeURIComponent(gitlabProjectId);
-        const formData = new FormData();
-        const videoBuffer = Buffer.from(video, "base64");
-        const blob = new Blob([videoBuffer], { type: "video/webm" });
-        formData.append("file", blob, "bug-report-video.webm");
+    // ── Step 2: Handle Attachments via GitHub Contents API ────────────────────
+    let attachmentsMarkdown = "";
 
-        const uploadRes = await fetch(`${gitlabUrl}/api/v4/projects/${encodedProjectId}/uploads`, {
-          method: "POST",
+    if (githubToken && githubRepo) {
+      const timestamp = Date.now();
+      const upload = async (name: string, content: string) => {
+        const path = `bug-reports/${timestamp}-${name}`;
+        const res = await fetch(`https://api.github.com/repos/${githubRepo}/contents/${path}`, {
+          method: "PUT",
           headers: {
-            "PRIVATE-TOKEN": gitlabToken,
+            Authorization: `Bearer ${githubToken}`,
+            Accept: "application/vnd.github+json",
+            "Content-Type": "application/json",
           },
-          body: formData,
+          body: JSON.stringify({
+            message: `Upload bug report attachment: ${name}`,
+            content: content,
+          }),
         });
-
-        if (uploadRes.ok) {
-          const uploadData = (await uploadRes.json()) as { markdown: string };
-          videoMarkdown = `\n\n### Vidéo du bug\n${uploadData.markdown}`;
+        if (res.ok) {
+          const json = (await res.json()) as { content: { download_url: string } };
+          return json.content.download_url;
         }
-      } catch (err) {
-        console.error("Failed to upload video to GitLab:", err);
+        return null;
+      };
+
+      if (screenshot) {
+        const url = await upload("screenshot.png", screenshot);
+        if (url) attachmentsMarkdown += `\n\n### Capture d'écran\n![Screenshot](${url})`;
+      }
+
+      if (video) {
+        const url = await upload("video.webm", video);
+        if (url) attachmentsMarkdown += `\n\n### Vidéo du bug\n[Télécharger / Voir la vidéo](${url})`;
       }
     }
 
-    if (videoMarkdown) {
-      issueBody += videoMarkdown;
+    if (attachmentsMarkdown) {
+      issueBody += attachmentsMarkdown;
     }
 
-    // ── Step 3: Create GitLab issue ───────────────────────────────────────────
-    if (!gitlabToken || !gitlabProjectId) {
-      // No GitLab credentials configured — return the draft so the user can see it
+    // ── Step 3: Create GitHub issue ───────────────────────────────────────────
+    if (!githubToken || !githubRepo) {
       return NextResponse.json({
         success: true,
         issueUrl: undefined,
+        description: issueBody, // Return draft if no token
       });
     }
 
-    const encodedProjectId = encodeURIComponent(gitlabProjectId);
-    const gitlabRes = await fetch(`${gitlabUrl}/api/v4/projects/${encodedProjectId}/issues`, {
+    const githubRes = await fetch(`https://api.github.com/repos/${githubRepo}/issues`, {
       method: "POST",
       headers: {
+        Authorization: `Bearer ${githubToken}`,
+        Accept: "application/vnd.github+json",
         "Content-Type": "application/json",
-        "PRIVATE-TOKEN": gitlabToken,
       },
       body: JSON.stringify({
         title: issueTitle,
-        description: issueBody,
-        labels: "bug",
+        body: issueBody,
+        labels: ["bug"],
       }),
     });
 
-    if (!gitlabRes.ok) {
-      const errText = await gitlabRes.text();
-      console.error("GitLab issue creation failed:", errText);
+    if (!githubRes.ok) {
+      const errText = await githubRes.text();
+      console.error("GitHub issue creation failed:", errText);
       return NextResponse.json(
-        { success: false, error: "Impossible de créer l'issue GitLab" },
+        { success: false, error: "Impossible de créer l'issue GitHub" },
         { status: 502 }
       );
     }
 
-    const issue = (await gitlabRes.json()) as { web_url: string };
-    return NextResponse.json({ success: true, issueUrl: issue.web_url });
+    const issue = (await githubRes.json()) as { html_url: string };
+    return NextResponse.json({ success: true, issueUrl: issue.html_url });
   } catch (error) {
     console.error("Error in /api/bug-report:", error);
     return NextResponse.json(

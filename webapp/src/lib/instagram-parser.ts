@@ -366,18 +366,18 @@ function countJsonArray(filePath: string, rootKey: string): number {
 function deriveInteractionsFromActivity(exportFolder: string): ContentInteractions | null {
   const activityDir = path.join(exportFolder, "your_instagram_activity");
 
-  const inboxCount    = countSubDirs(path.join(activityDir, "messages", "inbox"));
+  const inboxCount = countSubDirs(path.join(activityDir, "messages", "inbox"));
   const requestsCount = countSubDirs(path.join(activityDir, "messages", "message_requests"));
   const totalDmAccounts = inboxCount + requestsCount;
 
   const siDir = path.join(activityDir, "story_interactions");
-  const storyLikes     = countJsonArray(path.join(siDir, "story_likes.json"),    "story_activities_story_likes");
-  const storyPolls     = countJsonArray(path.join(siDir, "polls.json"),           "story_activities_polls");
-  const storyQuestions = countJsonArray(path.join(siDir, "questions.json"),       "story_activities_questions");
-  const storySliders   = countJsonArray(path.join(siDir, "emoji_sliders.json"),   "story_activities_emoji_sliders");
-  const storyQuizzes   = countJsonArray(path.join(siDir, "quizzes.json"),         "story_activities_quizzes");
+  const storyLikes = countJsonArray(path.join(siDir, "story_likes.json"), "story_activities_story_likes");
+  const storyPolls = countJsonArray(path.join(siDir, "polls.json"), "story_activities_polls");
+  const storyQuestions = countJsonArray(path.join(siDir, "questions.json"), "story_activities_questions");
+  const storySliders = countJsonArray(path.join(siDir, "emoji_sliders.json"), "story_activities_emoji_sliders");
+  const storyQuizzes = countJsonArray(path.join(siDir, "quizzes.json"), "story_activities_quizzes");
 
-  const storyReplies     = storyPolls + storyQuestions + storySliders + storyQuizzes;
+  const storyReplies = storyPolls + storyQuestions + storySliders + storyQuizzes;
   const storyInteractions = storyLikes + storyReplies;
 
   if (totalDmAccounts === 0 && storyInteractions === 0) return null;
@@ -874,9 +874,9 @@ export function computeMetrics(
   // came from non-followers. We estimate active followers from accountsInteracted.
   const followerInteractors = contentInteractions
     ? Math.round(
-        contentInteractions.accountsInteracted *
-          (1 - contentInteractions.nonFollowerInteractionPct / 100)
-      )
+      contentInteractions.accountsInteracted *
+      (1 - contentInteractions.nonFollowerInteractionPct / 100)
+    )
     : 0;
   const inactiveCount = contentInteractions
     ? Math.max(0, followerCount - followerInteractors)
@@ -930,19 +930,35 @@ export function computeMetrics(
 
 // ─── Main entry point ─────────────────────────────────────────────────────────
 
-export async function parseInstagramExport(): Promise<InstagramAnalytics | null> {
+export async function parseInstagramExport(
+  fromDate?: string,
+  toDate?: string
+): Promise<InstagramAnalytics | null> {
   const exportFolder = findExportFolder();
   if (!exportFolder) return null;
 
+  const from = fromDate ? new Date(fromDate) : undefined;
+  const to = toDate ? new Date(toDate) : undefined;
+
   // Detect JSON format and delegate to the JSON parser
   if (isJsonExport(exportFolder)) {
-    return parseJsonExport(exportFolder, computeMetrics);
+    return parseJsonExport(exportFolder, computeMetrics, from, to);
   }
 
   try {
-    const followers = parseFollowers(exportFolder);
-    const following = parseFollowing(exportFolder);
-    const posts = parsePosts(exportFolder);
+    let followers = parseFollowers(exportFolder);
+    let following = parseFollowing(exportFolder);
+    let posts = parsePosts(exportFolder);
+
+    // Apply date filters
+    if (from) {
+      posts = posts.filter((p) => p.timestamp >= from);
+      followers = followers.filter((f) => f.followedAt >= from);
+    }
+    if (to) {
+      posts = posts.filter((p) => p.timestamp <= to);
+      followers = followers.filter((f) => f.followedAt <= to);
+    }
 
     // Parse real insight data files
     const audienceInsights = parseAudienceInsights(exportFolder);

@@ -14,8 +14,20 @@ export interface UseInstagramDataReturn {
   setData: (analytics: InstagramAnalytics) => void;
 }
 
-export function useInstagramData(): UseInstagramDataReturn {
-  const { data, error, isLoading, mutate } = useSWR<DataApiResponse>("/api/data", fetcher, {
+export interface UseInstagramDataParams {
+  from?: string;
+  to?: string;
+}
+
+export function useInstagramData(params?: UseInstagramDataParams): UseInstagramDataReturn {
+  const queryString = params
+    ? new URLSearchParams(
+      Object.entries(params).filter(([_, v]) => v != null) as [string, string][]
+    ).toString()
+    : "";
+  const url = queryString ? `/api/data?${queryString}` : "/api/data";
+
+  const { data, error, isLoading, mutate } = useSWR<DataApiResponse>(url, fetcher, {
     revalidateOnFocus: false,
     revalidateOnReconnect: false,
     dedupingInterval: 5_000, // short dedup — mutate() after upload triggers a real re-fetch

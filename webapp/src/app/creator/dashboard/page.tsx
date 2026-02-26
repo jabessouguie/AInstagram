@@ -13,6 +13,8 @@ import {
   MessageSquare,
   Send,
   Upload,
+  Calendar,
+  Filter,
 } from "lucide-react";
 import { Header } from "@/components/layout/Header";
 import { MetricCard, MetricCardSkeleton } from "@/components/dashboard/MetricCard";
@@ -29,6 +31,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useInstagramData } from "@/hooks/useInstagramData";
 import { formatNumber, formatDate } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
+import { Button } from "@/components/ui/button";
+import { subDays, subMonths, subYears, startOfDay, endOfDay, format } from "date-fns";
 
 const TYPE_LABELS: Record<string, string> = {
   IMAGE: "📸 Photo",
@@ -39,9 +43,35 @@ const TYPE_LABELS: Record<string, string> = {
 };
 
 export default function CreatorDashboard() {
-  const { data, isLoading, mutate } = useInstagramData();
+  const [dateRange, setDateRange] = useState<{ from?: string; to?: string }>({});
+  const [period, setPeriod] = useState<"all" | "week" | "month" | "year" | "custom">("all");
+
+  const { data, isLoading, mutate } = useInstagramData(dateRange);
   const t = useT();
   const [includeReels, setIncludeReels] = useState(false);
+
+  const handlePeriodChange = (newPeriod: typeof period) => {
+    setPeriod(newPeriod);
+    const now = new Date();
+    let from: Date | undefined;
+    let to: Date | undefined = endOfDay(now);
+
+    if (newPeriod === "week") {
+      from = startOfDay(subDays(now, 7));
+    } else if (newPeriod === "month") {
+      from = startOfDay(subMonths(now, 1));
+    } else if (newPeriod === "year") {
+      from = startOfDay(subYears(now, 1));
+    } else if (newPeriod === "all") {
+      from = undefined;
+      to = undefined;
+    }
+
+    setDateRange({
+      from: from ? format(from, "yyyy-MM-dd") : undefined,
+      to: to ? format(to, "yyyy-MM-dd") : undefined,
+    });
+  };
 
   // Zip upload
   const zipInputRef = useRef<HTMLInputElement>(null);
@@ -198,16 +228,48 @@ export default function CreatorDashboard() {
             </p>
           </div>
           {data && (
-            <div className="flex flex-wrap gap-2 self-start sm:flex-col sm:items-end">
-              <Badge variant="outline" className="text-xs">
-                {t("dashboard.updatedAt")}: {formatDate(new Date(data.parsedAt))}
-              </Badge>
-              {(data.contentInteractions?.period ?? data.audienceInsights?.period) && (
-                <Badge variant="secondary" className="text-xs">
-                  {t("dashboard.dataPeriod")}:{" "}
-                  {data.contentInteractions?.period ?? data.audienceInsights?.period}
+            <div className="flex flex-col items-end gap-2">
+              <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card p-1">
+                {(["all", "week", "month", "year", "custom"] as const).map((p) => (
+                  <Button
+                    key={p}
+                    variant={period === p ? "secondary" : "ghost"}
+                    size="sm"
+                    className="h-8 px-3 text-xs capitalize"
+                    onClick={() => handlePeriodChange(p)}
+                  >
+                    {p === "all" ? "Tout" : p === "week" ? "Semaine" : p === "month" ? "Mois" : p === "year" ? "Année" : "Custom"}
+                  </Button>
+                ))}
+                {period === "custom" && (
+                  <div className="ml-2 flex items-center gap-2 pr-2">
+                    <input
+                      type="date"
+                      className="rounded border border-border bg-background px-2 py-0.5 text-xs outline-none focus:ring-1 focus:ring-primary/30"
+                      value={dateRange.from || ""}
+                      onChange={(e) => setDateRange((prev) => ({ ...prev, from: e.target.value }))}
+                    />
+                    <span className="text-muted-foreground">→</span>
+                    <input
+                      type="date"
+                      className="rounded border border-border bg-background px-2 py-0.5 text-xs outline-none focus:ring-1 focus:ring-primary/30"
+                      value={dateRange.to || ""}
+                      onChange={(e) => setDateRange((prev) => ({ ...prev, to: e.target.value }))}
+                    />
+                  </div>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-2 self-start sm:items-end">
+                <Badge variant="outline" className="text-xs">
+                  {t("dashboard.updatedAt")}: {formatDate(new Date(data.parsedAt))}
                 </Badge>
-              )}
+                {(data.contentInteractions?.period ?? data.audienceInsights?.period) && (
+                  <Badge variant="secondary" className="text-xs">
+                    {t("dashboard.dataPeriod")}:{" "}
+                    {data.contentInteractions?.period ?? data.audienceInsights?.period}
+                  </Badge>
+                )}
+              </div>
             </div>
           )}
         </div>

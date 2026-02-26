@@ -509,7 +509,7 @@ function deriveInteractionsFromActivity(exportFolder: string): ContentInteractio
     }).length;
   };
 
-  const inboxCount    = countDirs(path.join(activityDir, "messages", "inbox"));
+  const inboxCount = countDirs(path.join(activityDir, "messages", "inbox"));
   const requestsCount = countDirs(path.join(activityDir, "messages", "message_requests"));
   const totalDmAccounts = inboxCount + requestsCount;
 
@@ -652,12 +652,24 @@ type ComputeMetricsFn = (
 
 export function parseJsonExport(
   exportFolder: string,
-  computeMetrics: ComputeMetricsFn
+  computeMetrics: ComputeMetricsFn,
+  from?: Date,
+  to?: Date
 ): InstagramAnalytics | null {
   try {
-    const followers = parseFollowersJson(exportFolder);
-    const following = parseFollowingJson(exportFolder);
-    const posts = parsePostsJson(exportFolder);
+    let followers = parseFollowersJson(exportFolder);
+    let following = parseFollowingJson(exportFolder);
+    let posts = parsePostsJson(exportFolder);
+
+    // Filter by date
+    if (from) {
+      posts = posts.filter((p) => p.timestamp >= from);
+      followers = followers.filter((f) => f.followedAt >= from);
+    }
+    if (to) {
+      posts = posts.filter((p) => p.timestamp <= to);
+      followers = followers.filter((f) => f.followedAt <= to);
+    }
 
     // Enrich posts with per-post insights (likes, comments, etc.)
     enrichPostsWithInsights(exportFolder, posts);

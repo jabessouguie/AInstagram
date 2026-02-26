@@ -5,9 +5,13 @@ import type { DataApiResponse } from "@/types/instagram";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(): Promise<NextResponse<DataApiResponse>> {
+export async function GET(request: Request): Promise<NextResponse<DataApiResponse>> {
   try {
-    const data = await parseInstagramExport();
+    const { searchParams } = new URL(request.url);
+    const from = searchParams.get("from") || undefined;
+    const to = searchParams.get("to") || undefined;
+
+    const data = await parseInstagramExport(from, to);
 
     if (data) {
       return NextResponse.json({ success: true, data });
