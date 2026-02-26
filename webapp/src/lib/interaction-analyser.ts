@@ -96,10 +96,15 @@ function parseFollowersJsonAnalyser(exportFolder: string): Map<string, Date> {
     .filter((f) => f.startsWith("followers") && f.endsWith(".json"));
 
   for (const file of files) {
-    const data = readJsonFile<JsonFollowerEntry[]>(path.join(dir, file));
-    if (!Array.isArray(data)) continue;
-    for (const entry of data) {
-      for (const item of entry?.string_list_data ?? []) {
+    const data = readJsonFile<any>(path.join(dir, file));
+    if (!data) continue;
+
+    // Handle both { relationships_followers: [...] } and top-level [...]
+    const entries = Array.isArray(data) ? data : (data.relationships_followers || []);
+
+    for (const entry of entries) {
+      const items = entry?.string_list_data ?? [];
+      for (const item of items) {
         if (!item.value) continue;
         result.set(
           item.value.toLowerCase(),
@@ -117,19 +122,25 @@ function parseFollowingJsonAnalyser(exportFolder: string): Map<string, Date> {
   if (!fs.existsSync(dir)) return result;
 
   const file = path.join(dir, "following.json");
-  const data = readJsonFile<Record<string, JsonFollowerEntry[]>>(file);
+  const data = readJsonFile<any>(file);
   if (!data) return result;
 
-  for (const arr of Object.values(data)) {
-    if (!Array.isArray(arr)) continue;
-    for (const entry of arr) {
-      for (const item of entry?.string_list_data ?? []) {
-        if (!item.value) continue;
-        result.set(
-          item.value.toLowerCase(),
-          item.timestamp ? new Date(item.timestamp * 1000) : new Date(0)
-        );
-      }
+  // Following JSON usually contains a "relationships_following" key which is an array
+  const arr = data.relationships_following || (Array.isArray(data) ? data : []);
+
+  for (const entry of arr) {
+    // In following.json, username is usually in "title"
+    const username = entry?.title?.toLowerCase();
+    const items = entry?.string_list_data ?? [];
+
+    for (const item of items) {
+      const finalUsername = item.value?.toLowerCase() || username;
+      if (!finalUsername) continue;
+
+      result.set(
+        finalUsername,
+        item.timestamp ? new Date(item.timestamp * 1000) : new Date(0)
+      );
     }
   }
   return result;
@@ -155,15 +166,19 @@ function parseSentDmsJson(exportFolder: string): Map<string, DMRecord> {
     const fullPath = path.join(inboxDir, convDir);
     if (!fs.statSync(fullPath).isDirectory()) continue;
 
-    // Extract username from folder name: {username}_{numeric_id}
+    // Extract username from folder name: {username}_{numeric_id} or just numeric_id
     const match = convDir.match(/^(.+)_\d+$/);
-    if (!match) continue;
-    const username = match[1].toLowerCase();
+    let username = match ? match[1].toLowerCase() : null;
 
     // Read the most recent message file
     const msgFile = path.join(fullPath, "message_1.json");
     const data = readJsonFile<JsonMessageFile>(msgFile);
     if (!data?.messages?.length) continue;
+
+    // If folder name didn't give us a username, we could theoretically try to find it in participants,
+    // but without knowing the owner's name reliably in all exports, it's hard.
+    // However, the folder name pattern usually covers direct DMs.
+    if (!username) continue;
 
     const latestTs = Math.max(...data.messages.map((m) => m.timestamp_ms));
     const lastDate = new Date(latestTs);

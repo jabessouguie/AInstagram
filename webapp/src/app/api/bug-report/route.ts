@@ -5,6 +5,7 @@ export const dynamic = "force-dynamic";
 
 interface BugReportRequest {
   screenshot?: string; // base64 PNG
+  video?: string; // base64 webm
   description?: string;
   pageUrl?: string;
   userAgent?: string;
@@ -19,11 +20,11 @@ interface BugReportResponse {
 export async function POST(request: Request): Promise<NextResponse<BugReportResponse>> {
   try {
     const body: BugReportRequest = await request.json();
-    const { screenshot, description, pageUrl, userAgent } = body;
+    const { screenshot, video, description, pageUrl, userAgent } = body;
 
-    if (!screenshot && !description?.trim()) {
+    if (!screenshot && !video && !description?.trim()) {
       return NextResponse.json(
-        { success: false, error: "Fournissez une capture d'écran ou une description" },
+        { success: false, error: "Fournissez une capture d'écran, une vidéo ou une description" },
         { status: 400 }
       );
     }
@@ -39,7 +40,7 @@ export async function POST(request: Request): Promise<NextResponse<BugReportResp
 
     if (geminiKey) {
       const genAI = new GoogleGenerativeAI(geminiKey);
-      const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" }); // Standardize to 1.5-flash
 
       const contextText = [
         pageUrl ? `Page : ${pageUrl}` : "",
@@ -75,7 +76,8 @@ Réponds UNIQUEMENT avec ce JSON (sans markdown) :
   "title": "Titre court de l'issue",
   "body": "Description markdown complète",
   "severity": "low|medium|high|critical"
-}`);
+}
+`);
 
       const result = await model.generateContent(parts);
       const raw = result.response
@@ -101,7 +103,38 @@ Réponds UNIQUEMENT avec ce JSON (sans markdown) :
       issueBody = `**Description :** ${description ?? "—"}\n\n**Page :** ${pageUrl ?? "N/A"}\n**Navigateur :** ${userAgent ?? "N/A"}`;
     }
 
-    // ── Step 2: Create GitLab issue ───────────────────────────────────────────
+    // ── Step 2: Handle Video Upload to GitLab ─────────────────────────────────
+    let videoMarkdown = "";
+    if (video && gitlabToken && gitlabProjectId) {
+      try {
+        const encodedProjectId = encodeURIComponent(gitlabProjectId);
+        const formData = new FormData();
+        const videoBuffer = Buffer.from(video, "base64");
+        const blob = new Blob([videoBuffer], { type: "video/webm" });
+        formData.append("file", blob, "bug-report-video.webm");
+
+        const uploadRes = await fetch(`${gitlabUrl}/api/v4/projects/${encodedProjectId}/uploads`, {
+          method: "POST",
+          headers: {
+            "PRIVATE-TOKEN": gitlabToken,
+          },
+          body: formData,
+        });
+
+        if (uploadRes.ok) {
+          const uploadData = (await uploadRes.json()) as { markdown: string };
+          videoMarkdown = `\n\n### Vidéo du bug\n${uploadData.markdown}`;
+        }
+      } catch (err) {
+        console.error("Failed to upload video to GitLab:", err);
+      }
+    }
+
+    if (videoMarkdown) {
+      issueBody += videoMarkdown;
+    }
+
+    // ── Step 3: Create GitLab issue ───────────────────────────────────────────
     if (!gitlabToken || !gitlabProjectId) {
       // No GitLab credentials configured — return the draft so the user can see it
       return NextResponse.json({

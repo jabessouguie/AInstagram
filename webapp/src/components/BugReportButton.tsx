@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { Bug, X, Camera, Loader2, CheckCircle, AlertCircle } from "lucide-react";
+import { Bug, X, Camera, Video, StopCircle, Loader2, CheckCircle, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 type Status = "idle" | "capturing" | "analyzing" | "success" | "error";
@@ -11,15 +11,69 @@ export function BugReportButton() {
   const [status, setStatus] = useState<Status>("idle");
   const [description, setDescription] = useState("");
   const [screenshot, setScreenshot] = useState<string | null>(null); // base64
+  const [videoBase64, setVideoBase64] = useState<string | null>(null); // base64
+  const [isRecording, setIsRecording] = useState(false);
+  const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
   const [issueUrl, setIssueUrl] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
   const reset = () => {
     setStatus("idle");
     setDescription("");
     setScreenshot(null);
+    setVideoBase64(null);
+    setIsRecording(false);
+    if (mediaRecorder && mediaRecorder.state !== "inactive") {
+      mediaRecorder.stop();
+    }
+    setMediaRecorder(null);
     setIssueUrl(null);
     setErrorMsg(null);
   };
+
+  const startRecording = useCallback(async () => {
+    setStatus("capturing");
+    try {
+      const stream = await navigator.mediaDevices.getDisplayMedia({
+        video: true,
+        audio: false,
+      });
+
+      const recorder = new MediaRecorder(stream, { mimeType: "video/webm" });
+      const chunks: Blob[] = [];
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunks.push(e.data);
+      };
+
+      recorder.onstop = async () => {
+        const blob = new Blob(chunks, { type: "video/webm" });
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const base64 = (reader.result as string).split(",")[1];
+          setVideoBase64(base64);
+        };
+        reader.readAsDataURL(blob);
+        stream.getTracks().forEach((t) => t.stop());
+        setIsRecording(false);
+        setStatus("idle");
+      };
+
+      recorder.start();
+      setMediaRecorder(recorder);
+      setIsRecording(true);
+      setStatus("idle");
+    } catch {
+      setStatus("idle");
+      setIsRecording(false);
+    }
+  }, []);
+
+  const stopRecording = useCallback(() => {
+    if (mediaRecorder && mediaRecorder.state !== "inactive") {
+      mediaRecorder.stop();
+    }
+  }, [mediaRecorder]);
 
   const captureScreen = useCallback(async () => {
     setStatus("capturing");
@@ -45,7 +99,6 @@ export function BugReportButton() {
       setScreenshot(base64);
       setStatus("idle");
     } catch {
-      // User cancelled or permission denied — stay idle
       setStatus("idle");
     }
   }, []);
@@ -59,6 +112,7 @@ export function BugReportButton() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           screenshot,
+          video: videoBase64,
           description,
           pageUrl: window.location.href,
           userAgent: navigator.userAgent,
@@ -75,7 +129,7 @@ export function BugReportButton() {
       setErrorMsg(err instanceof Error ? err.message : "Erreur lors de l'envoi");
       setStatus("error");
     }
-  }, [screenshot, description]);
+  }, [screenshot, videoBase64, description]);
 
   if (!open) {
     return (
@@ -146,7 +200,7 @@ export function BugReportButton() {
         ) : (
           <>
             {/* Screenshot preview */}
-            {screenshot ? (
+            {screenshot && (
               <div className="relative">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
@@ -162,21 +216,57 @@ export function BugReportButton() {
                   <X className="h-3 w-3" />
                 </button>
               </div>
-            ) : (
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-full text-xs"
-                onClick={captureScreen}
-                disabled={status === "capturing"}
-              >
-                {status === "capturing" ? (
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                ) : (
-                  <Camera className="h-3 w-3" />
-                )}
-                {status === "capturing" ? "Capture en cours…" : "Capturer l'écran"}
-              </Button>
+            )}
+
+            {/* Video preview */}
+            {videoBase64 && (
+              <div className="relative">
+                <video
+                  src={`data:video/webm;base64,${videoBase64}`}
+                  controls
+                  className="w-full rounded-lg border border-border"
+                  style={{ maxHeight: 120 }}
+                />
+                <button
+                  onClick={() => setVideoBase64(null)}
+                  className="absolute right-1 top-1 rounded bg-background/80 p-0.5 text-muted-foreground hover:text-foreground"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            )}
+
+            {!screenshot && !videoBase64 && (
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex-1 text-[10px]"
+                  onClick={captureScreen}
+                  disabled={status === "capturing" || isRecording}
+                >
+                  {status === "capturing" ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <Camera className="h-3 w-3" />
+                  )}
+                  Screenshot
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className={`flex-1 text-[10px] ${isRecording ? "border-red-500 text-red-500" : ""}`}
+                  onClick={isRecording ? stopRecording : startRecording}
+                  disabled={status === "capturing"}
+                >
+                  {isRecording ? (
+                    <StopCircle className="h-3 w-3 animate-pulse" />
+                  ) : (
+                    <Video className="h-3 w-3" />
+                  )}
+                  {isRecording ? "Stop" : "Vidéo"}
+                </Button>
+              </div>
             )}
 
             {/* Description */}
@@ -196,7 +286,7 @@ export function BugReportButton() {
               size="sm"
               className="w-full text-xs"
               onClick={submit}
-              disabled={status === "analyzing" || (!screenshot && !description.trim())}
+              disabled={status === "analyzing" || isRecording || (!screenshot && !videoBase64 && !description.trim())}
             >
               {status === "analyzing" ? (
                 <>
