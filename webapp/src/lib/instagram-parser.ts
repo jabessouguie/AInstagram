@@ -337,44 +337,108 @@ function parseAudienceInsights(exportFolder: string): AudienceInsights | null {
   };
 }
 
+/** Count folders (conversation threads) inside a directory. */
+function countSubDirs(dir: string): number {
+  if (!fs.existsSync(dir)) return 0;
+  return fs.readdirSync(dir).filter((f) => {
+    try { return fs.statSync(path.join(dir, f)).isDirectory(); } catch { return false; }
+  }).length;
+}
+
+/** Count entries in a JSON array stored under rootKey inside a file. */
+function countJsonArray(filePath: string, rootKey: string): number {
+  if (!fs.existsSync(filePath)) return 0;
+  try {
+    const raw = JSON.parse(fs.readFileSync(filePath, "utf-8")) as Record<string, unknown>;
+    const arr = raw[rootKey];
+    return Array.isArray(arr) ? arr.length : 0;
+  } catch { return 0; }
+}
+
+/**
+ * Fallback: derive ContentInteractions from messages and story_interactions
+ * when the official insight file (HTML or JSON) is absent.
+ *
+ * - messages/inbox/            → unique DM threads (bidirectional)
+ * - messages/message_requests/ → inbound DMs from non-followers
+ * - story_interactions/        → story likes + poll/Q&A/slider/quiz responses
+ */
+function deriveInteractionsFromActivity(exportFolder: string): ContentInteractions | null {
+  const activityDir = path.join(exportFolder, "your_instagram_activity");
+
+  const inboxCount    = countSubDirs(path.join(activityDir, "messages", "inbox"));
+  const requestsCount = countSubDirs(path.join(activityDir, "messages", "message_requests"));
+  const totalDmAccounts = inboxCount + requestsCount;
+
+  const siDir = path.join(activityDir, "story_interactions");
+  const storyLikes     = countJsonArray(path.join(siDir, "story_likes.json"),    "story_activities_story_likes");
+  const storyPolls     = countJsonArray(path.join(siDir, "polls.json"),           "story_activities_polls");
+  const storyQuestions = countJsonArray(path.join(siDir, "questions.json"),       "story_activities_questions");
+  const storySliders   = countJsonArray(path.join(siDir, "emoji_sliders.json"),   "story_activities_emoji_sliders");
+  const storyQuizzes   = countJsonArray(path.join(siDir, "quizzes.json"),         "story_activities_quizzes");
+
+  const storyReplies     = storyPolls + storyQuestions + storySliders + storyQuizzes;
+  const storyInteractions = storyLikes + storyReplies;
+
+  if (totalDmAccounts === 0 && storyInteractions === 0) return null;
+
+  const nonFollowerPct =
+    totalDmAccounts > 0 ? Math.round((requestsCount / totalDmAccounts) * 100) : 0;
+
+  return {
+    period: "",
+    totalInteractions: totalDmAccounts + storyInteractions,
+    totalInteractionsChange: "",
+    posts: { interactions: 0, likes: 0, comments: 0, shares: 0, saves: 0 },
+    stories: { interactions: storyInteractions, replies: storyReplies },
+    reels: { interactions: 0, likes: 0, comments: 0, shares: 0, saves: 0 },
+    accountsInteracted: totalDmAccounts,
+    accountsInteractedChange: "",
+    nonFollowerInteractionPct: nonFollowerPct,
+  };
+}
+
 function parseContentInteractions(exportFolder: string): ContentInteractions | null {
   const map = parseInsightTable(
     exportFolder,
     "logged_information/past_instagram_insights/content_interactions.html"
   );
-  if (!map.size) return null;
+  if (map.size) {
+    const interactionPcts = parseKVPcts(
+      map.get("Comptes ayant interagi par type de followers") ?? ""
+    );
+    const nonFollowerPct = interactionPcts["Non-followers"] ?? 0;
 
-  const interactionPcts = parseKVPcts(
-    map.get("Comptes ayant interagi par type de followers") ?? ""
-  );
-  const nonFollowerPct = interactionPcts["Non-followers"] ?? 0;
+    return {
+      period: map.get("Période") ?? "",
+      totalInteractions: parseNum(map.get("Interactions avec le contenu") ?? "0"),
+      totalInteractionsChange: map.get("Nombre d'interactions avec le contenu") ?? "",
+      posts: {
+        interactions: parseNum(map.get("Interactions avec les publications") ?? "0"),
+        likes: parseNum(map.get("Mentions J'aime des publications") ?? "0"),
+        comments: parseNum(map.get("Commentaires sur les publications") ?? "0"),
+        shares: parseNum(map.get("Partages de publications") ?? "0"),
+        saves: parseNum(map.get("Enregistrements de publications") ?? "0"),
+      },
+      stories: {
+        interactions: parseNum(map.get("Interactions avec la story") ?? "0"),
+        replies: parseNum(map.get("Réponses aux stories") ?? "0"),
+      },
+      reels: {
+        interactions: parseNum(map.get("Interactions avec les reels") ?? "0"),
+        likes: parseNum(map.get("Mentions J'aime sur les reels") ?? "0"),
+        comments: parseNum(map.get("Commentaires sur les reels") ?? "0"),
+        shares: parseNum(map.get("Partages des reels") ?? "0"),
+        saves: parseNum(map.get("Enregistrements de reels") ?? "0"),
+      },
+      accountsInteracted: parseNum(map.get("Comptes ayant interagi") ?? "0"),
+      accountsInteractedChange: map.get("Nombre de comptes ayant interagi") ?? "",
+      nonFollowerInteractionPct: nonFollowerPct,
+    };
+  }
 
-  return {
-    period: map.get("Période") ?? "",
-    totalInteractions: parseNum(map.get("Interactions avec le contenu") ?? "0"),
-    totalInteractionsChange: map.get("Nombre d'interactions avec le contenu") ?? "",
-    posts: {
-      interactions: parseNum(map.get("Interactions avec les publications") ?? "0"),
-      likes: parseNum(map.get("Mentions J'aime des publications") ?? "0"),
-      comments: parseNum(map.get("Commentaires sur les publications") ?? "0"),
-      shares: parseNum(map.get("Partages de publications") ?? "0"),
-      saves: parseNum(map.get("Enregistrements de publications") ?? "0"),
-    },
-    stories: {
-      interactions: parseNum(map.get("Interactions avec la story") ?? "0"),
-      replies: parseNum(map.get("Réponses aux stories") ?? "0"),
-    },
-    reels: {
-      interactions: parseNum(map.get("Interactions avec les reels") ?? "0"),
-      likes: parseNum(map.get("Mentions J'aime sur les reels") ?? "0"),
-      comments: parseNum(map.get("Commentaires sur les reels") ?? "0"),
-      shares: parseNum(map.get("Partages des reels") ?? "0"),
-      saves: parseNum(map.get("Enregistrements de reels") ?? "0"),
-    },
-    accountsInteracted: parseNum(map.get("Comptes ayant interagi") ?? "0"),
-    accountsInteractedChange: map.get("Nombre de comptes ayant interagi") ?? "",
-    nonFollowerInteractionPct: nonFollowerPct,
-  };
+  // Fallback: derive from messages DMs + story interactions
+  return deriveInteractionsFromActivity(exportFolder);
 }
 
 function parseReachInsights(exportFolder: string): ReachInsights | null {

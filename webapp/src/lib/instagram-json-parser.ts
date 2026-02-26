@@ -474,6 +474,93 @@ function parseAudienceInsightsJson(exportFolder: string): AudienceInsights | nul
 
 // ─── Content Interactions ───────────────────────────────────────────────────
 
+/**
+ * Count items in a JSON array file without fully parsing it, by reading only
+ * the root array under `rootKey`. Returns 0 if file doesn't exist or is empty.
+ */
+function countJsonArrayEntries(filePath: string, rootKey: string): number {
+  if (!fs.existsSync(filePath)) return 0;
+  const data = readJson(filePath) as Record<string, unknown> | null;
+  if (!data) return 0;
+  const arr = data[rootKey];
+  return Array.isArray(arr) ? arr.length : 0;
+}
+
+/**
+ * Fallback: derive ContentInteractions from messages and story_interactions
+ * when the official content_interactions.json is missing.
+ *
+ * Sources:
+ * - messages/inbox/         → unique DM conversation threads (bidirectional)
+ * - messages/message_requests/ → inbound DMs from non-followers
+ * - story_interactions/story_likes.json → story likes received
+ * - story_interactions/polls.json       → poll responses received
+ * - story_interactions/questions.json   → Q&A responses received
+ * - story_interactions/emoji_sliders.json + quizzes.json → additional story interactions
+ */
+function deriveInteractionsFromActivity(exportFolder: string): ContentInteractions | null {
+  const activityDir = path.join(exportFolder, "your_instagram_activity");
+
+  // ── DM conversations ──────────────────────────────────────────────────────
+  const countDirs = (dir: string) => {
+    if (!fs.existsSync(dir)) return 0;
+    return fs.readdirSync(dir).filter((f) => {
+      try { return fs.statSync(path.join(dir, f)).isDirectory(); } catch { return false; }
+    }).length;
+  };
+
+  const inboxCount    = countDirs(path.join(activityDir, "messages", "inbox"));
+  const requestsCount = countDirs(path.join(activityDir, "messages", "message_requests"));
+  const totalDmAccounts = inboxCount + requestsCount;
+
+  // ── Story interactions ────────────────────────────────────────────────────
+  const siDir = path.join(activityDir, "story_interactions");
+
+  const storyLikes = countJsonArrayEntries(
+    path.join(siDir, "story_likes.json"),
+    "story_activities_story_likes"
+  );
+  const storyPolls = countJsonArrayEntries(
+    path.join(siDir, "polls.json"),
+    "story_activities_polls"
+  );
+  const storyQuestions = countJsonArrayEntries(
+    path.join(siDir, "questions.json"),
+    "story_activities_questions"
+  );
+  const storySliders = countJsonArrayEntries(
+    path.join(siDir, "emoji_sliders.json"),
+    "story_activities_emoji_sliders"
+  );
+  const storyQuizzes = countJsonArrayEntries(
+    path.join(siDir, "quizzes.json"),
+    "story_activities_quizzes"
+  );
+
+  // story replies = all non-like story interactions (polls + Q&As + sliders + quizzes)
+  const storyReplies = storyPolls + storyQuestions + storySliders + storyQuizzes;
+  const storyInteractions = storyLikes + storyReplies;
+
+  if (totalDmAccounts === 0 && storyInteractions === 0) return null;
+
+  // Non-follower % ≈ message_requests / total DMs
+  // (message_requests are always from non-followers by Instagram's definition)
+  const nonFollowerPct =
+    totalDmAccounts > 0 ? Math.round((requestsCount / totalDmAccounts) * 100) : 0;
+
+  return {
+    period: "", // cumulative — no period metadata in these sources
+    totalInteractions: totalDmAccounts + storyInteractions,
+    totalInteractionsChange: "",
+    posts: { interactions: 0, likes: 0, comments: 0, shares: 0, saves: 0 },
+    stories: { interactions: storyInteractions, replies: storyReplies },
+    reels: { interactions: 0, likes: 0, comments: 0, shares: 0, saves: 0 },
+    accountsInteracted: totalDmAccounts,
+    accountsInteractedChange: "",
+    nonFollowerInteractionPct: nonFollowerPct,
+  };
+}
+
 function parseContentInteractionsJson(exportFolder: string): ContentInteractions | null {
   const filePath = path.join(
     exportFolder,
@@ -482,42 +569,45 @@ function parseContentInteractionsJson(exportFolder: string): ContentInteractions
     "content_interactions.json"
   );
   const data = readJson(filePath);
-  if (!data) return null;
+  if (data) {
+    const map = extractStringMap(data);
+    if (map.size) {
+      const interactionPcts = parseKVPcts(
+        map.get("Comptes ayant interagi par type de followers") || ""
+      );
+      const nonFollowerPct = interactionPcts["Non-followers"] ?? 0;
 
-  const map = extractStringMap(data);
-  if (!map.size) return null;
+      return {
+        period: map.get("Période") || map.get("Period") || "",
+        totalInteractions: parseNum(map.get("Interactions avec le contenu") || map.get("Content interactions") || "0"),
+        totalInteractionsChange: map.get("Nombre d'interactions avec le contenu") || "",
+        posts: {
+          interactions: parseNum(map.get("Interactions avec les publications") || "0"),
+          likes: parseNum(map.get("Mentions J'aime des publications") || "0"),
+          comments: parseNum(map.get("Commentaires sur les publications") || "0"),
+          shares: parseNum(map.get("Partages de publications") || "0"),
+          saves: parseNum(map.get("Enregistrements de publications") || "0"),
+        },
+        stories: {
+          interactions: parseNum(map.get("Interactions avec la story") || "0"),
+          replies: parseNum(map.get("Réponses aux stories") || "0"),
+        },
+        reels: {
+          interactions: parseNum(map.get("Interactions avec les reels") || "0"),
+          likes: parseNum(map.get("Mentions J'aime sur les reels") || "0"),
+          comments: parseNum(map.get("Commentaires sur les reels") || "0"),
+          shares: parseNum(map.get("Partages des reels") || "0"),
+          saves: parseNum(map.get("Enregistrements de reels") || "0"),
+        },
+        accountsInteracted: parseNum(map.get("Comptes ayant interagi") || "0"),
+        accountsInteractedChange: map.get("Nombre de comptes ayant interagi") || "",
+        nonFollowerInteractionPct: nonFollowerPct,
+      };
+    }
+  }
 
-  const interactionPcts = parseKVPcts(
-    map.get("Comptes ayant interagi par type de followers") || ""
-  );
-  const nonFollowerPct = interactionPcts["Non-followers"] ?? 0;
-
-  return {
-    period: map.get("Période") || map.get("Period") || "",
-    totalInteractions: parseNum(map.get("Interactions avec le contenu") || map.get("Content interactions") || "0"),
-    totalInteractionsChange: map.get("Nombre d'interactions avec le contenu") || "",
-    posts: {
-      interactions: parseNum(map.get("Interactions avec les publications") || "0"),
-      likes: parseNum(map.get("Mentions J'aime des publications") || "0"),
-      comments: parseNum(map.get("Commentaires sur les publications") || "0"),
-      shares: parseNum(map.get("Partages de publications") || "0"),
-      saves: parseNum(map.get("Enregistrements de publications") || "0"),
-    },
-    stories: {
-      interactions: parseNum(map.get("Interactions avec la story") || "0"),
-      replies: parseNum(map.get("Réponses aux stories") || "0"),
-    },
-    reels: {
-      interactions: parseNum(map.get("Interactions avec les reels") || "0"),
-      likes: parseNum(map.get("Mentions J'aime sur les reels") || "0"),
-      comments: parseNum(map.get("Commentaires sur les reels") || "0"),
-      shares: parseNum(map.get("Partages des reels") || "0"),
-      saves: parseNum(map.get("Enregistrements de reels") || "0"),
-    },
-    accountsInteracted: parseNum(map.get("Comptes ayant interagi") || "0"),
-    accountsInteractedChange: map.get("Nombre de comptes ayant interagi") || "",
-    nonFollowerInteractionPct: nonFollowerPct,
-  };
+  // Fallback: derive from messages DMs + story interactions
+  return deriveInteractionsFromActivity(exportFolder);
 }
 
 // ─── Reach Insights ─────────────────────────────────────────────────────────
