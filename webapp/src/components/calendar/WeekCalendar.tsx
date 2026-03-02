@@ -44,10 +44,6 @@ function addDays(date: Date, n: number): Date {
   return d;
 }
 
-function sameCell(date: Date, colDayIndex: number, hour: number): boolean {
-  return date.getDay() === colDayIndex && date.getHours() === hour;
-}
-
 // ─── Toast ────────────────────────────────────────────────────────────────────
 
 function useToast() {
@@ -81,7 +77,7 @@ export function WeekCalendar({
   selectedId,
   weekStart,
   onSelectItem,
-  onWeekChange,
+  onWeekChange: _onWeekChange,
   onItemsChanged,
 }: WeekCalendarProps) {
   const t = useT();

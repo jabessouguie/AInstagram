@@ -241,23 +241,25 @@ export function ReadyToPostPanel({
             </h3>
             <ul className="space-y-1.5">
               {stickers.map((sticker) => (
-                <li
-                  key={sticker}
-                  className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-muted transition-colors"
-                  onClick={() => toggleSticker(sticker)}
-                >
-                  {checklist[sticker] ? (
-                    <CheckSquare className="h-4 w-4 text-green-400 shrink-0" />
-                  ) : (
-                    <Square className="h-4 w-4 text-muted-foreground shrink-0" />
-                  )}
-                  <span
-                    className={`text-xs ${
-                      checklist[sticker] ? "line-through text-muted-foreground" : "text-foreground"
-                    }`}
+                <li key={sticker}>
+                  <button
+                    type="button"
+                    className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-muted transition-colors text-left"
+                    onClick={() => toggleSticker(sticker)}
                   >
-                    {sticker}
-                  </span>
+                    {checklist[sticker] ? (
+                      <CheckSquare className="h-4 w-4 text-green-400 shrink-0" />
+                    ) : (
+                      <Square className="h-4 w-4 text-muted-foreground shrink-0" />
+                    )}
+                    <span
+                      className={`text-xs ${
+                        checklist[sticker] ? "line-through text-muted-foreground" : "text-foreground"
+                      }`}
+                    >
+                      {sticker}
+                    </span>
+                  </button>
                 </li>
               ))}
             </ul>
