@@ -11,6 +11,7 @@ import {
   Users,
   FileText,
   Handshake,
+  MessageSquare,
   MessageSquarePlus,
   LayoutPanelLeft,
   CalendarDays,
@@ -18,6 +19,8 @@ import {
   Link2,
   Menu,
   X,
+  Video,
+  TrendingUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { InstagramProfile } from "@/types/instagram";
@@ -39,11 +42,14 @@ export function Header({ profile, mode, agencyName }: HeaderProps) {
     { href: "/creator/dashboard", label: t("nav.dashboard"), icon: null },
     { href: "/creator/interactions", label: t("nav.interactions"), icon: Users },
     { href: "/creator/audience", label: t("nav.audience"), icon: Users },
+    { href: "/creator/reels", label: t("nav.reels"), icon: Video },
+    { href: "/creator/competitive", label: t("nav.competitive"), icon: TrendingUp },
     { href: "/creator/reports", label: t("nav.reports"), icon: BarChart2 },
     { href: "/creator/mediakit", label: t("nav.mediakit"), icon: FileText },
     { href: "/creator/carousel", label: t("nav.carousel"), icon: LayoutPanelLeft },
     { href: "/creator/calendar", label: t("nav.calendar"), icon: CalendarDays },
     { href: "/creator/collabs", label: t("nav.collabs"), icon: Handshake },
+    { href: "/creator/inbox", label: t("inbox.title"), icon: MessageSquare },
     { href: "/creator/comments", label: t("nav.comments"), icon: MessageSquarePlus },
     { href: "/creator/connect", label: t("nav.connect"), icon: Link2 },
   ];

@@ -37,6 +37,10 @@ export interface InstagramPost {
   savedCount: number;
   url?: string;
   thumbnailUrl?: string;
+  /** Reels only — from ig_reels_avg_watch_time (seconds) */
+  avgWatchTime?: number;
+  /** Reels only — total video plays */
+  videoViews?: number;
 }
 
 export interface FollowerGrowthPoint {
@@ -356,6 +360,8 @@ export interface InteractionAnalysis {
   dmSuggestions: DMSuggestion[];
   /** Accounts you follow, don't follow back, DM sent > 1 month ago → unfollow */
   unfollowCandidates: UnfollowCandidate[];
+  /** "api" = sourced from Graph API comments; "export" = sourced from local export */
+  dataSource?: "api" | "export";
 }
 
 export interface InteractionApiResponse {
@@ -479,5 +485,91 @@ export interface ExecutiveReport {
 export interface ReportGenerateResponse {
   success: boolean;
   report?: ExecutiveReport;
+  error?: string;
+}
+
+// ============================================================
+// Skip Rate Analysis Types
+// ============================================================
+
+export interface SkipRateInsights {
+  patterns: string[]; // e.g. "Hook trop long", "Pas de texte à l'écran"
+  topSkippedCaptions: string[]; // captions of worst-performing reels
+  recommendations: string[];
+  medianWatchTime: number; // seconds
+}
+
+export interface SkipRateAnalysisResponse {
+  success: boolean;
+  insights?: SkipRateInsights;
+  error?: string;
+}
+
+// ============================================================
+// Competitive Intelligence Types
+// ============================================================
+
+export interface CompetitiveGap {
+  category: string; // e.g. "Formats vidéo", "Hashtags"
+  description: string;
+  opportunity: string;
+}
+
+export interface CompetitiveAnalysis {
+  positioning: string; // narrative paragraph
+  strengths: string[];
+  gaps: CompetitiveGap[];
+  contentFormats: string[]; // untapped formats used in the niche
+  recommendations: string[];
+  generatedAt: string;
+}
+
+export interface CompetitiveAnalysisResponse {
+  success: boolean;
+  analysis?: CompetitiveAnalysis;
+  error?: string;
+}
+
+// ─── Social Inbox ─────────────────────────────────────────────────────────────
+
+export interface InboxReply {
+  id: string;
+  username: string;
+  text: string;
+  timestamp: string;
+}
+
+export interface InboxComment {
+  id: string;
+  mediaId: string;
+  mediaCaption: string;
+  mediaType: string;
+  username: string;
+  text: string;
+  timestamp: string;
+  likeCount: number;
+  replies: InboxReply[];
+}
+
+export interface InboxData {
+  comments: InboxComment[];
+  dataSource: "api" | "unavailable";
+}
+
+export interface InboxResponse {
+  success: boolean;
+  data?: InboxData;
+  error?: string;
+}
+
+export interface InboxReplyRequest {
+  commentId?: string;
+  mediaId?: string;
+  message: string;
+}
+
+export interface InboxReplyResponse {
+  success: boolean;
+  id?: string;
   error?: string;
 }

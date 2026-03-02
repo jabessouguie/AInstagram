@@ -17,9 +17,10 @@ import type {
   ContentInteractions,
   ReachInsights,
   RawComment,
+  InboxComment,
 } from "@/types/instagram";
 
-const BASE = "https://graph.instagram.com/v22.0";
+const BASE = "https://graph.facebook.com/v22.0";
 
 // ─── Simple in-process cache (5 min TTL) ──────────────────────────────────────
 
@@ -93,13 +94,16 @@ export class InstagramGraphAPI {
     private readonly accountId: string
   ) {}
 
-  /** Validate the token with a lightweight /me call. Returns username or throws. */
+  /** Validate the token with a lightweight account call. Returns display name or throws.
+   *  We request `id,name` only — the `username` field is deprecated for Facebook
+   *  User/Page objects (error #12) and must not be included here. */
   async validateToken(): Promise<string> {
-    const res = await gFetch<{ username?: string; id?: string }>(`/${this.accountId}`, this.token, {
-      fields: "id,username",
+    const res = await gFetch<{ id?: string; name?: string }>(`/${this.accountId}`, this.token, {
+      fields: "id,name",
     });
-    if (!res.username) throw new Error("Token validated but no username returned");
-    return res.username;
+    if (!res.id)
+      throw new Error("Unable to verify account — check your Instagram Business Account ID");
+    return res.name ?? res.id;
   }
 
   async getProfile(): Promise<InstagramProfile> {
@@ -120,8 +124,8 @@ export class InstagramGraphAPI {
       });
 
       return {
-        username: res.username,
-        fullName: res.name ?? res.username,
+        username: res.username ?? res.name ?? res.id ?? "unknown",
+        fullName: res.name ?? res.username ?? res.id ?? "unknown",
         bio: res.biography ?? "",
         website: res.website ?? "",
         followerCount: res.followers_count ?? 0,
@@ -143,12 +147,13 @@ export class InstagramGraphAPI {
     });
   }
 
-  /** Fetch per-media insights (reach, impressions, saved, shares). */
-  private async getMediaInsights(mediaId: string): Promise<Record<string, number>> {
+  /** Fetch per-media insights (reach, impressions, saved, shares). For REELs also fetches watch time. */
+  private async getMediaInsights(mediaId: string, isReel = false): Promise<Record<string, number>> {
     try {
-      const res = await gFetch<GMediaInsights>(`/${mediaId}/insights`, this.token, {
-        metric: "reach,impressions,saved,shares,likes",
-      });
+      const metric = isReel
+        ? "reach,impressions,saved,shares,likes,ig_reels_avg_watch_time,video_views"
+        : "reach,impressions,saved,shares,likes";
+      const res = await gFetch<GMediaInsights>(`/${mediaId}/insights`, this.token, { metric });
       const out: Record<string, number> = {};
       for (const item of res.data ?? []) {
         out[item.name] = item.value ?? item.values?.[0]?.value ?? 0;
@@ -186,15 +191,97 @@ export class InstagramGraphAPI {
     return batches.flat().slice(0, 500);
   }
 
+  /** Generic POST to Graph API */
+  private async gPost<T>(path: string, body: Record<string, string>): Promise<T> {
+    const url = new URL(`${BASE}${path}`);
+    url.searchParams.set("access_token", this.token);
+    const res = await fetch(url.toString(), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(
+        (err as { error?: { message?: string } }).error?.message ??
+          `Graph API POST error ${res.status}`
+      );
+    }
+    return res.json() as Promise<T>;
+  }
+
+  /** Fetch comments across the 20 most-recent posts for the inbox, with replies. */
+  async getInboxComments(limit = 20): Promise<InboxComment[]> {
+    const media = await this.getMedia(limit);
+    const withComments = media.filter((m) => (m.comments_count ?? 0) > 0).slice(0, 20);
+
+    const results: InboxComment[] = [];
+    for (const m of withComments) {
+      try {
+        const res = await gFetch<{
+          data: Array<{
+            id: string;
+            text: string;
+            timestamp: string;
+            username: string;
+            like_count?: number;
+            replies?: {
+              data: Array<{ id: string; text: string; timestamp: string; username: string }>;
+            };
+          }>;
+        }>(`/${m.id}/comments`, this.token, {
+          fields: "id,text,timestamp,username,like_count,replies{id,text,timestamp,username}",
+          limit: "50",
+        });
+        for (const c of res.data ?? []) {
+          results.push({
+            id: c.id,
+            mediaId: m.id,
+            mediaCaption: m.caption ?? "",
+            mediaType: m.media_type,
+            username: c.username,
+            text: c.text,
+            timestamp: c.timestamp,
+            likeCount: c.like_count ?? 0,
+            replies: (c.replies?.data ?? []).map((r) => ({
+              id: r.id,
+              username: r.username,
+              text: r.text,
+              timestamp: r.timestamp,
+            })),
+          });
+        }
+      } catch {
+        // skip media with inaccessible comments
+      }
+    }
+    return results.sort(
+      (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    );
+  }
+
+  /** Reply to an existing comment */
+  async replyToComment(commentId: string, message: string): Promise<{ id: string }> {
+    return this.gPost<{ id: string }>(`/${commentId}/replies`, { message });
+  }
+
+  /** Create a new top-level comment on a media object */
+  async createComment(mediaId: string, message: string): Promise<{ id: string }> {
+    return this.gPost<{ id: string }>(`/${mediaId}/comments`, { message });
+  }
+
   /** Account-level insights (reach, impressions, profile views). */
-  private async getAccountInsights(): Promise<{
+  private async getAccountInsights(
+    sinceTs?: number,
+    untilTs?: number
+  ): Promise<{
     reach: number;
     impressions: number;
     profileViews: number;
   }> {
     try {
-      const since = Math.floor(Date.now() / 1000) - 30 * 24 * 3600;
-      const until = Math.floor(Date.now() / 1000);
+      const since = sinceTs ?? Math.floor(Date.now() / 1000) - 30 * 24 * 3600;
+      const until = untilTs ?? Math.floor(Date.now() / 1000);
       const res = await gFetch<{ data: GInsight[] }>(`/${this.accountId}/insights`, this.token, {
         metric: "reach,impressions,profile_views",
         period: "day",
@@ -272,24 +359,22 @@ export class InstagramGraphAPI {
 
   // ─── Assemble full InstagramAnalytics ────────────────────────────────────
 
-  async buildAnalytics(): Promise<InstagramAnalytics> {
+  async buildAnalytics(sinceTs?: number, untilTs?: number): Promise<InstagramAnalytics> {
     const [profile, rawMedia] = await Promise.all([this.getProfile(), this.getMedia(100)]);
 
-    // Fetch per-media insights for all posts (batched to avoid blowing rate limit)
-    const insightsBatch = await Promise.all(rawMedia.map((m) => this.getMediaInsights(m.id)));
+    // Fetch per-media insights for all posts; pass isReel flag for watch time metrics
+    const insightsBatch = await Promise.all(
+      rawMedia.map((m) => this.getMediaInsights(m.id, m.media_type === "REEL"))
+    );
 
     const posts: InstagramPost[] = rawMedia.map((m, i) => {
       const ins = insightsBatch[i];
+      const isReel = m.media_type === "REEL";
       return {
         id: m.id,
         timestamp: new Date(m.timestamp),
         caption: m.caption ?? "",
-        mediaType:
-          m.media_type === "CAROUSEL_ALBUM"
-            ? "CAROUSEL"
-            : m.media_type === "REEL"
-              ? "REEL"
-              : "IMAGE",
+        mediaType: m.media_type === "CAROUSEL_ALBUM" ? "CAROUSEL" : isReel ? "REEL" : "IMAGE",
         likes: m.like_count ?? 0,
         comments: m.comments_count ?? 0,
         shares: ins.shares ?? 0,
@@ -297,6 +382,10 @@ export class InstagramGraphAPI {
         impressions: ins.impressions ?? 0,
         savedCount: ins.saved ?? 0,
         thumbnailUrl: m.thumbnail_url,
+        ...(isReel && {
+          avgWatchTime: ins.ig_reels_avg_watch_time,
+          videoViews: ins.video_views,
+        }),
       };
     });
 
@@ -378,7 +467,7 @@ export class InstagramGraphAPI {
 
     // ── Account-level insights ─────────────────────────────────────────────
     const [accountInsights, demographics] = await Promise.all([
-      this.getAccountInsights(),
+      this.getAccountInsights(sinceTs, untilTs),
       this.getAudienceDemographics(),
     ]);
 
