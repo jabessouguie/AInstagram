@@ -529,3 +529,47 @@ export interface CompetitiveAnalysisResponse {
   analysis?: CompetitiveAnalysis;
   error?: string;
 }
+
+// ─── Social Inbox ─────────────────────────────────────────────────────────────
+
+export interface InboxReply {
+  id: string;
+  username: string;
+  text: string;
+  timestamp: string;
+}
+
+export interface InboxComment {
+  id: string;
+  mediaId: string;
+  mediaCaption: string;
+  mediaType: string;
+  username: string;
+  text: string;
+  timestamp: string;
+  likeCount: number;
+  replies: InboxReply[];
+}
+
+export interface InboxData {
+  comments: InboxComment[];
+  dataSource: "api" | "unavailable";
+}
+
+export interface InboxResponse {
+  success: boolean;
+  data?: InboxData;
+  error?: string;
+}
+
+export interface InboxReplyRequest {
+  commentId?: string;
+  mediaId?: string;
+  message: string;
+}
+
+export interface InboxReplyResponse {
+  success: boolean;
+  id?: string;
+  error?: string;
+}

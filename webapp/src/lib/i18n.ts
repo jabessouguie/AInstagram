@@ -368,6 +368,28 @@ const FR = {
   // ── Header (remaining) ────────────────────────────────────────────────────
   "header.homeAriaLabel": "Retour à l'accueil",
 
+  // ── Inbox ─────────────────────────────────────────────────────────────────
+  "inbox.title": "Boîte de réception",
+  "inbox.subtitle": "Réponds aux commentaires de tes posts en un clic.",
+  "inbox.refresh": "Rafraîchir",
+  "inbox.no_api": "Connecte ton compte Instagram API pour voir ta boîte de réception.",
+  "inbox.tabs.comments": "Commentaires",
+  "inbox.tabs.mentions": "Mentions",
+  "inbox.tabs.dms": "Messages directs",
+  "inbox.replies": "réponses",
+  "inbox.reply.action": "Répondre",
+  "inbox.reply.cancel": "Annuler",
+  "inbox.reply.placeholder": "Ta réponse...",
+  "inbox.error.send": "Erreur lors de l'envoi",
+  "inbox.error.network": "Erreur réseau",
+  "inbox.comments.empty": "Aucun commentaire récent.",
+  "inbox.mentions.soon": "Mentions — bientôt disponible",
+  "inbox.mentions.desc": "Les mentions seront visibles une fois l'API connectée.",
+  "inbox.dms.soon": "Messages directs — bientôt disponible",
+  "inbox.dms.desc":
+    "L'API Instagram ne donne pas encore accès aux DMs. En attendant, ouvre-les directement.",
+  "inbox.dms.open": "Ouvrir Instagram Direct",
+
   // ── Calendar ──────────────────────────────────────────────────────────────
   "nav.calendar": "Calendrier",
   "calendar.title": "Calendrier éditorial",
@@ -871,6 +893,28 @@ const EN: Record<keyof typeof FR, string> = {
 
   // ── Header (remaining) ────────────────────────────────────────────────────
   "header.homeAriaLabel": "Back to home",
+
+  // ── Inbox ─────────────────────────────────────────────────────────────────
+  "inbox.title": "Inbox",
+  "inbox.subtitle": "Reply to comments on your posts in one click.",
+  "inbox.refresh": "Refresh",
+  "inbox.no_api": "Connect your Instagram API account to see your inbox.",
+  "inbox.tabs.comments": "Comments",
+  "inbox.tabs.mentions": "Mentions",
+  "inbox.tabs.dms": "Direct Messages",
+  "inbox.replies": "replies",
+  "inbox.reply.action": "Reply",
+  "inbox.reply.cancel": "Cancel",
+  "inbox.reply.placeholder": "Your reply...",
+  "inbox.error.send": "Failed to send",
+  "inbox.error.network": "Network error",
+  "inbox.comments.empty": "No recent comments.",
+  "inbox.mentions.soon": "Mentions — coming soon",
+  "inbox.mentions.desc": "Mentions will appear once your API is connected.",
+  "inbox.dms.soon": "Direct Messages — coming soon",
+  "inbox.dms.desc":
+    "The Instagram API doesn't expose DMs yet. In the meantime, open them directly.",
+  "inbox.dms.open": "Open Instagram Direct",
 
   // ── Calendar ──────────────────────────────────────────────────────────────
   "nav.calendar": "Calendar",

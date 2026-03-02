@@ -17,6 +17,7 @@ import type {
   ContentInteractions,
   ReachInsights,
   RawComment,
+  InboxComment,
 } from "@/types/instagram";
 
 const BASE = "https://graph.facebook.com/v22.0";
@@ -188,6 +189,85 @@ export class InstagramGraphAPI {
 
     const batches = await Promise.all(sorted.map((m) => this.getMediaComments(m.id)));
     return batches.flat().slice(0, 500);
+  }
+
+  /** Generic POST to Graph API */
+  private async gPost<T>(path: string, body: Record<string, string>): Promise<T> {
+    const url = new URL(`${BASE}${path}`);
+    url.searchParams.set("access_token", this.token);
+    const res = await fetch(url.toString(), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(
+        (err as { error?: { message?: string } }).error?.message ??
+          `Graph API POST error ${res.status}`
+      );
+    }
+    return res.json() as Promise<T>;
+  }
+
+  /** Fetch comments across the 20 most-recent posts for the inbox, with replies. */
+  async getInboxComments(limit = 20): Promise<InboxComment[]> {
+    const media = await this.getMedia(limit);
+    const withComments = media.filter((m) => (m.comments_count ?? 0) > 0).slice(0, 20);
+
+    const results: InboxComment[] = [];
+    for (const m of withComments) {
+      try {
+        const res = await gFetch<{
+          data: Array<{
+            id: string;
+            text: string;
+            timestamp: string;
+            username: string;
+            like_count?: number;
+            replies?: {
+              data: Array<{ id: string; text: string; timestamp: string; username: string }>;
+            };
+          }>;
+        }>(`/${m.id}/comments`, this.token, {
+          fields: "id,text,timestamp,username,like_count,replies{id,text,timestamp,username}",
+          limit: "50",
+        });
+        for (const c of res.data ?? []) {
+          results.push({
+            id: c.id,
+            mediaId: m.id,
+            mediaCaption: m.caption ?? "",
+            mediaType: m.media_type,
+            username: c.username,
+            text: c.text,
+            timestamp: c.timestamp,
+            likeCount: c.like_count ?? 0,
+            replies: (c.replies?.data ?? []).map((r) => ({
+              id: r.id,
+              username: r.username,
+              text: r.text,
+              timestamp: r.timestamp,
+            })),
+          });
+        }
+      } catch {
+        // skip media with inaccessible comments
+      }
+    }
+    return results.sort(
+      (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    );
+  }
+
+  /** Reply to an existing comment */
+  async replyToComment(commentId: string, message: string): Promise<{ id: string }> {
+    return this.gPost<{ id: string }>(`/${commentId}/replies`, { message });
+  }
+
+  /** Create a new top-level comment on a media object */
+  async createComment(mediaId: string, message: string): Promise<{ id: string }> {
+    return this.gPost<{ id: string }>(`/${mediaId}/comments`, { message });
   }
 
   /** Account-level insights (reach, impressions, profile views). */
