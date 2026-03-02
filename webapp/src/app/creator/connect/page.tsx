@@ -189,7 +189,7 @@ export default function ConnectPage() {
                 <p className="mt-1 text-[10px] text-muted-foreground">
                   {t("connect.howToGet")}{" "}
                   <a
-                    href="https://developers.facebook.com/tools/explorer/?method=GET&path=me%3Ffields%3Did%2Cusername&version=v22.0"
+                    href="https://developers.facebook.com/tools/explorer/?method=GET&path=me%2Faccounts%3Ffields%3Did%2Cname%2Cinstagram_business_account&version=v22.0"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-primary hover:underline"

@@ -93,13 +93,16 @@ export class InstagramGraphAPI {
     private readonly accountId: string
   ) {}
 
-  /** Validate the token with a lightweight /me call. Returns username or throws. */
+  /** Validate the token with a lightweight account call. Returns display name or throws.
+   *  We request `id,name` only — the `username` field is deprecated for Facebook
+   *  User/Page objects (error #12) and must not be included here. */
   async validateToken(): Promise<string> {
-    const res = await gFetch<{ username?: string; id?: string }>(`/${this.accountId}`, this.token, {
-      fields: "id,username",
+    const res = await gFetch<{ id?: string; name?: string }>(`/${this.accountId}`, this.token, {
+      fields: "id,name",
     });
-    if (!res.username) throw new Error("Token validated but no username returned");
-    return res.username;
+    if (!res.id)
+      throw new Error("Unable to verify account — check your Instagram Business Account ID");
+    return res.name ?? res.id;
   }
 
   async getProfile(): Promise<InstagramProfile> {
@@ -120,8 +123,8 @@ export class InstagramGraphAPI {
       });
 
       return {
-        username: res.username,
-        fullName: res.name ?? res.username,
+        username: res.username ?? res.name ?? res.id ?? "unknown",
+        fullName: res.name ?? res.username ?? res.id ?? "unknown",
         bio: res.biography ?? "",
         website: res.website ?? "",
         followerCount: res.followers_count ?? 0,

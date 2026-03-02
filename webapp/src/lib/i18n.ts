@@ -401,7 +401,9 @@ const FR = {
   "connect.step3.title": "Obtenir un token d'accès",
   "connect.step3.desc":
     "Utilise le Graph API Explorer avec les permissions : instagram_basic, instagram_manage_insights, instagram_manage_comments.",
-  "connect.step4.title": "Coller le token",
+  "connect.step4.title": "Coller le token et l'ID du compte Instagram",
+  "connect.step4.desc":
+    "L'Instagram Business Account ID est différent de ton User ID Facebook. Utilise le lien ci-dessous pour le trouver via Graph API Explorer.",
   "connect.token.label": "Access Token (long-lived, 60 jours)",
   "connect.token.placeholder": "EAAxxxxx...",
   "connect.accountId.label": "Instagram Account ID",
@@ -855,7 +857,9 @@ const EN: Record<keyof typeof FR, string> = {
   "connect.step3.title": "Get an access token",
   "connect.step3.desc":
     "Use the Graph API Explorer with permissions: instagram_basic, instagram_manage_insights, instagram_manage_comments.",
-  "connect.step4.title": "Paste the token",
+  "connect.step4.title": "Paste the token and your Instagram Account ID",
+  "connect.step4.desc":
+    "The Instagram Business Account ID is different from your Facebook User ID. Use the link below to find it via Graph API Explorer.",
   "connect.token.label": "Access Token (long-lived, 60 days)",
   "connect.token.placeholder": "EAAxxxxx...",
   "connect.accountId.label": "Instagram Account ID",
