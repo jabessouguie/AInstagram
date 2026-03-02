@@ -19,7 +19,7 @@ import type {
   RawComment,
 } from "@/types/instagram";
 
-const BASE = "https://graph.instagram.com/v22.0";
+const BASE = "https://graph.facebook.com/v22.0";
 
 // ─── Simple in-process cache (5 min TTL) ──────────────────────────────────────
 
