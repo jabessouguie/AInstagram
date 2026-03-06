@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Loader2, RefreshCw, Users, MessageSquare, Zap, Lock } from "lucide-react";
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, ResponsiveContainer } from "recharts";
 import { Header } from "@/components/layout/Header";
@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { useInstagramData } from "@/hooks/useInstagramData";
 import type { AudiencePersona, BrandVoiceAudit, AudienceSegmentsResponse } from "@/types/instagram";
 import { useT } from "@/lib/i18n";
+import { loadPersonas, savePersonas } from "@/lib/personas-store";
 
 // ─── Big Five axis labels ──────────────────────────────────────────────────────
 
@@ -175,6 +176,16 @@ export default function AudiencePage() {
   const [dataSource, setDataSource] = useState<AudienceSegmentsResponse["dataSource"] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [savedAt, setSavedAt] = useState<string | null>(null);
+
+  // Load persisted personas on mount
+  useEffect(() => {
+    const saved = loadPersonas();
+    if (saved) {
+      setPersonas(saved.personas);
+      setSavedAt(saved.savedAt);
+    }
+  }, []);
 
   const isApiConnected = typeof window !== "undefined" && !!localStorage.getItem("ig_access_token");
 
@@ -215,6 +226,8 @@ export default function AudiencePage() {
         setBrandVoice(json.brandVoice ?? null);
         setCommentCount(json.commentCount ?? 0);
         setDataSource(json.dataSource);
+        savePersonas(json.personas);
+        setSavedAt(new Date().toISOString());
       } else {
         setError(json.error ?? "Erreur lors de l'analyse");
       }
@@ -253,6 +266,17 @@ export default function AudiencePage() {
                   ? t("audience.persona.based_on_comments").replace("{n}", String(commentCount))
                   : t("audience.persona.based_on_inference")}
               </Badge>
+            )}
+            {savedAt && (
+              <span className="text-xs text-muted-foreground">
+                {t("audience.persona.savedAt")}{" "}
+                {new Date(savedAt).toLocaleDateString("fr-FR", {
+                  day: "numeric",
+                  month: "short",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </span>
             )}
             <Button
               onClick={handleGenerate}

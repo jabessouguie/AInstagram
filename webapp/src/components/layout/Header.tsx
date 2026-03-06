@@ -11,7 +11,6 @@ import {
   Users,
   FileText,
   Handshake,
-  MessageSquare,
   MessageSquarePlus,
   LayoutPanelLeft,
   CalendarDays,
@@ -49,7 +48,6 @@ export function Header({ profile, mode, agencyName }: HeaderProps) {
     { href: "/creator/carousel", label: t("nav.carousel"), icon: LayoutPanelLeft },
     { href: "/creator/calendar", label: t("nav.calendar"), icon: CalendarDays },
     { href: "/creator/collabs", label: t("nav.collabs"), icon: Handshake },
-    { href: "/creator/inbox", label: t("inbox.title"), icon: MessageSquare },
     { href: "/creator/comments", label: t("nav.comments"), icon: MessageSquarePlus },
     { href: "/creator/connect", label: t("nav.connect"), icon: Link2 },
   ];

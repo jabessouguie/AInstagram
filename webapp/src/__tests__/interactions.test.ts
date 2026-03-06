@@ -22,7 +22,6 @@ function classifyInteractions(
 ) {
   const ONE_MONTH = 30 * 24 * 60 * 60 * 1000;
   const neverInteracted: string[] = [];
-  const dmSuggestions: string[] = [];
   const unfollowCandidates: string[] = [];
 
   for (const { username } of following) {
@@ -37,13 +36,11 @@ function classifyInteractions(
       const dmDate = sentDMs.get(username);
       if (dmDate && nowMs - dmDate.getTime() > ONE_MONTH) {
         unfollowCandidates.push(username);
-      } else if (!dmDate) {
-        dmSuggestions.push(username);
       }
     }
   }
 
-  return { neverInteracted, dmSuggestions, unfollowCandidates };
+  return { neverInteracted, unfollowCandidates };
 }
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
@@ -91,20 +88,6 @@ describe("classifyInteractions", () => {
     });
   });
 
-  describe("dmSuggestions", () => {
-    it("includes accounts that don't follow back and were never DM'd", () => {
-      expect(result.dmSuggestions).toContain("carol");
-    });
-
-    it("excludes accounts with a recent DM (< 1 month)", () => {
-      expect(result.dmSuggestions).not.toContain("eve");
-    });
-
-    it("excludes accounts with an old DM (> 1 month) - those go to unfollow", () => {
-      expect(result.dmSuggestions).not.toContain("dave");
-    });
-  });
-
   describe("unfollowCandidates", () => {
     it("includes accounts with DM sent > 1 month ago and no follow-back", () => {
       expect(result.unfollowCandidates).toContain("dave");
@@ -119,7 +102,7 @@ describe("classifyInteractions", () => {
       expect(result.unfollowCandidates).not.toContain("bob");
     });
 
-    it("excludes accounts never DM'd (they go to dmSuggestions)", () => {
+    it("excludes accounts never DM'd", () => {
       expect(result.unfollowCandidates).not.toContain("carol");
     });
   });
@@ -128,17 +111,15 @@ describe("classifyInteractions", () => {
     it("handles empty following list", () => {
       const r = classifyInteractions([], followerSet, interactors, sentDMs, NOW);
       expect(r.neverInteracted).toHaveLength(0);
-      expect(r.dmSuggestions).toHaveLength(0);
       expect(r.unfollowCandidates).toHaveLength(0);
     });
 
     it("handles account on the boundary of 1 month exactly", () => {
-      // Exactly 1 month = 30 days
       const exactlyOneMonthAgo = new Date(NOW - 30 * 24 * 60 * 60 * 1000);
       const dms = new Map([["frank", exactlyOneMonthAgo]]);
       const fol = [{ username: "frank", followedAt: new Date("2025-01-01") }];
       const r = classifyInteractions(fol, new Set(), new Set(), dms, NOW);
-      // Exactly on boundary: NOT > 1 month, so still a DM suggestion (or edge)
+      // Exactly on boundary: NOT > 1 month, so not an unfollow candidate
       expect(r.unfollowCandidates).not.toContain("frank");
     });
   });

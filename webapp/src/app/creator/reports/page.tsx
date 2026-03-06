@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import {
   BarChart2,
   CheckCircle2,
@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { useInstagramData } from "@/hooks/useInstagramData";
 import type { ExecutiveReport, ReportGenerateResponse } from "@/types/instagram";
 import { useT } from "@/lib/i18n";
+import { loadReports, saveReport, deleteReport, type SavedReport } from "@/lib/report-store";
 
 // ─── NLP Query ────────────────────────────────────────────────────────────────
 
@@ -228,9 +229,15 @@ export default function ReportsPage() {
   const { data } = useInstagramData();
 
   const [report, setReport] = useState<ExecutiveReport | null>(null);
+  const [savedReports, setSavedReports] = useState<SavedReport[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const reportRef = useRef<HTMLDivElement>(null);
+
+  // Load persisted reports on mount
+  useEffect(() => {
+    setSavedReports(loadReports());
+  }, []);
 
   async function handleGenerate() {
     if (!data) return;
@@ -245,6 +252,8 @@ export default function ReportsPage() {
       const json: ReportGenerateResponse = await res.json();
       if (json.success && json.report) {
         setReport(json.report);
+        const saved = saveReport(json.report);
+        setSavedReports((prev) => [saved, ...prev].slice(0, 10));
       } else {
         setError(json.error ?? "Erreur");
       }
@@ -355,6 +364,57 @@ export default function ReportsPage() {
             </div>
           ) : null}
         </div>
+
+        {/* Saved reports history */}
+        {savedReports.length > 0 && (
+          <div className="space-y-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              {t("reports.history.title")}
+            </p>
+            <div className="space-y-2">
+              {savedReports.map((sr) => (
+                <div
+                  key={sr.id}
+                  className="flex items-center justify-between rounded-xl border border-border bg-card px-4 py-3"
+                >
+                  <div>
+                    <p className="text-sm font-medium">{sr.report.period}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {new Date(sr.savedAt).toLocaleDateString("fr-FR", {
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 px-2 text-xs"
+                      onClick={() => setReport(sr.report)}
+                    >
+                      {t("reports.history.view")}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 px-2 text-xs text-destructive hover:text-destructive"
+                      onClick={() => {
+                        deleteReport(sr.id);
+                        setSavedReports((prev) => prev.filter((r) => r.id !== sr.id));
+                      }}
+                    >
+                      ×
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Advanced features */}
         <div className="space-y-3">

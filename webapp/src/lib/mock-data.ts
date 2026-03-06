@@ -131,6 +131,8 @@ function generatePosts(count: number): InstagramPost[] {
       reach: Math.floor(Math.random() * 3000 + 500),
       impressions: Math.floor(Math.random() * 5000 + 800),
       savedCount: Math.floor(Math.random() * 50 + 5),
+      // Reels only: average watch time in seconds (5–30s range)
+      ...(isReel && { avgWatchTime: Math.floor(Math.random() * 25 + 5) }),
     };
   });
 }

@@ -20,11 +20,16 @@
 export type AIProvider = "gemini" | "anthropic" | "openai" | "openai-compatible";
 
 const DEFAULT_MODELS: Record<AIProvider, string> = {
-  gemini: "gemini-2.5-flash",
+  gemini: "gemini-3-flash-preview",
   anthropic: "claude-sonnet-4-6",
   openai: "gpt-4o",
   "openai-compatible": "llama3",
 };
+
+/** Gemini model aliases — pass as `options.model` to override the default. */
+export const GEMINI_FLASH = "gemini-3-flash-preview"; // Gemini 3.0 — fast, efficient (default)
+export const GEMINI_FLASH_LITE = "gemini-3.1-flash-lite-preview"; // Gemini 3.1 Lite — cost-efficient
+export const GEMINI_PRO = "gemini-3.1-pro-preview"; // Gemini 3.1 Pro — most capable
 
 /** Detect which provider to use, based on env vars. */
 export function getActiveProvider(): AIProvider {
@@ -133,7 +138,7 @@ export async function callGeminiVision(
   const { GoogleGenerativeAI } = await import("@google/generative-ai");
   const key = process.env.GEMINI_API_KEY;
   if (!key) throw new Error("GEMINI_API_KEY is not configured for vision tasks");
-  const model = options.model ?? "gemini-2.5-flash";
+  const model = options.model ?? GEMINI_FLASH;
   const genAI = new GoogleGenerativeAI(key);
   const m = genAI.getGenerativeModel({ model });
   const result = await m.generateContent(parts);

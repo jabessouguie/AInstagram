@@ -416,16 +416,9 @@ export async function analyseInteractions(): Promise<InteractionAnalysis | null>
   const ONE_MONTH_MS = 30 * 24 * 60 * 60 * 1000;
   const now = Date.now();
 
-  // Tab 1: mutual follows who have never interacted (liked/commented or DM'd)
+  // Tab 1: mutual follows who have never interacted (liked/commented)
   const neverInteracted: UnfollowCandidate[] = [];
-  // Tab 2: you follow, they don't follow back, never had any DM conversation
-  const dmSuggestions: Array<{
-    username: string;
-    profileUrl: string;
-    followedSince: Date;
-    reason: string;
-  }> = [];
-  // Tab 3: you follow, they don't follow back, last DM > 1 month ago
+  // Tab 2: you follow, they don't follow back, last DM > 1 month ago → unfollow
   const unfollowCandidates: UnfollowCandidate[] = [];
 
   for (const username of followingSet) {
@@ -439,27 +432,15 @@ export async function analyseInteractions(): Promise<InteractionAnalysis | null>
       neverInteracted.push({ username, followedSince, profileUrl });
     }
 
-    // Tab 2 + 3: they don't follow back
+    // Tab 2: they don't follow back and last DM > 1 month ago → unfollow candidate
     if (!theyFollowBack) {
       const dmRecord = sentDMs.get(username);
       if (dmRecord && now - dmRecord.lastSentAt.getTime() > ONE_MONTH_MS) {
-        // Conversation exists but last message > 1 month ago → unfollow candidate
         unfollowCandidates.push({
           username,
           followedSince,
           profileUrl,
           lastDmSentAt: dmRecord.lastSentAt,
-        });
-      } else if (!dmRecord) {
-        // No conversation at all → suggest reaching out
-        dmSuggestions.push({
-          username,
-          profileUrl,
-          followedSince,
-          reason:
-            followedSince.getTime() > 0
-              ? `Tu suis @${username} depuis le ${followedSince.toLocaleDateString("fr-FR")} mais ils ne te suivent pas en retour`
-              : `Tu suis @${username} mais ils ne te suivent pas en retour`,
         });
       }
     }
@@ -470,10 +451,6 @@ export async function analyseInteractions(): Promise<InteractionAnalysis | null>
 
   return {
     neverInteracted: neverInteracted.sort(byFollowedDesc).slice(0, 200),
-    dmSuggestions: dmSuggestions
-      .sort((a, b) => b.followedSince.getTime() - a.followedSince.getTime())
-      .slice(0, 50)
-      .map((s) => ({ ...s, suggestedDm: "" })),
     unfollowCandidates: unfollowCandidates.sort(byFollowedDesc).slice(0, 100),
     dataSource: "export" as const,
   };
@@ -483,39 +460,14 @@ export async function analyseInteractions(): Promise<InteractionAnalysis | null>
 
 /**
  * Build an InteractionAnalysis from real Graph API comment data.
- * - dmSuggestions: top commenters (real users who engaged with your content)
- * - neverInteracted / unfollowCandidates: not available via API (privacy restriction)
+ * neverInteracted / unfollowCandidates: not available via API (privacy restriction)
  */
 export async function analyseInteractionsFromAPI(
-  token: string,
-  accountId: string
+  _token: string,
+  _accountId: string
 ): Promise<InteractionAnalysis> {
-  const { InstagramGraphAPI } = await import("@/lib/instagram-graph-api");
-  const api = new InstagramGraphAPI(token, accountId);
-
-  const rawMedia = await api.getMedia(50);
-  const comments = await api.getAllComments(rawMedia);
-
-  // Count comments per commenter
-  const counts = new Map<string, number>();
-  for (const c of comments) {
-    counts.set(c.username, (counts.get(c.username) ?? 0) + 1);
-  }
-
-  // Build DM suggestions from top commenters (most engaged first)
-  const dmSuggestions = [...counts.entries()]
-    .sort(([, a], [, b]) => b - a)
-    .slice(0, 30)
-    .map(([username, count]) => ({
-      username,
-      profileUrl: `https://www.instagram.com/${username}/`,
-      suggestedDm: "",
-      reason: `A commenté ${count} fois sur tes publications récentes`,
-    }));
-
   return {
     neverInteracted: [],
-    dmSuggestions,
     unfollowCandidates: [],
     dataSource: "api" as const,
   };

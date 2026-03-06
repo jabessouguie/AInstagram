@@ -404,7 +404,10 @@ export class InstagramGraphAPI {
         savedCount: ins.saved ?? 0,
         thumbnailUrl: m.thumbnail_url,
         ...(isReel && {
-          avgWatchTime: ins.ig_reels_avg_watch_time,
+          // ig_reels_avg_watch_time is returned in milliseconds — convert to seconds
+          avgWatchTime: ins.ig_reels_avg_watch_time
+            ? Math.round(ins.ig_reels_avg_watch_time / 1000)
+            : undefined,
           videoViews: ins.video_views,
         }),
       };

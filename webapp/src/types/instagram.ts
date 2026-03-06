@@ -348,18 +348,9 @@ export interface UnfollowCandidate {
   lastDmSentAt?: Date; // undefined = never DM'd
 }
 
-export interface DMSuggestion {
-  username: string;
-  profileUrl: string;
-  suggestedDm: string;
-  reason: string; // e.g. "follows you, you follow back, 0 interactions"
-}
-
 export interface InteractionAnalysis {
   /** Accounts you follow that have never liked or commented on your posts */
   neverInteracted: UnfollowCandidate[];
-  /** Accounts you follow but don't follow back, suggested for a DM */
-  dmSuggestions: DMSuggestion[];
   /** Accounts you follow, don't follow back, DM sent > 1 month ago → unfollow */
   unfollowCandidates: UnfollowCandidate[];
   /** "api" = sourced from Graph API comments; "export" = sourced from local export */
@@ -369,18 +360,6 @@ export interface InteractionAnalysis {
 export interface InteractionApiResponse {
   success: boolean;
   data?: InteractionAnalysis;
-  error?: string;
-}
-
-export interface DMSuggestRequest {
-  username: string;
-  profileUrl: string;
-  creatorProfile: Partial<InstagramProfile>;
-}
-
-export interface DMSuggestResponse {
-  success: boolean;
-  data?: { suggestedDm: string };
   error?: string;
 }
 

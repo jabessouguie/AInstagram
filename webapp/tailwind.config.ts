@@ -14,6 +14,11 @@ const config: Config = {
       screens: { "2xl": "1400px" },
     },
     extend: {
+      fontFamily: {
+        sans: ["var(--font-sans)", "Montserrat", "sans-serif"],
+        display: ["var(--font-display)", "Playfair Display", "serif"],
+        secondary: ["var(--font-secondary)", "Roboto", "sans-serif"],
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",

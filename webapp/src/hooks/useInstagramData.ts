@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import useSWR from "swr";
 import type { DataApiResponse, InstagramAnalytics } from "@/types/instagram";
 
@@ -42,9 +43,20 @@ export function useInstagramData(params?: UseInstagramDataParams): UseInstagramD
 
   const { data, error, isLoading, mutate } = useSWR<DataApiResponse>(url, fetcher, {
     revalidateOnFocus: false,
-    revalidateOnReconnect: false,
-    dedupingInterval: 5_000, // short dedup — mutate() after upload triggers a real re-fetch
+    revalidateOnReconnect: true,
+    dedupingInterval: 5_000,
   });
+
+  // Re-fetch when the Instagram token changes in localStorage (e.g. after connecting the API)
+  useEffect(() => {
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === "ig_access_token" || e.key === "ig_account_id") {
+        void mutate(undefined, { revalidate: true });
+      }
+    };
+    window.addEventListener("storage", handleStorage);
+    return () => window.removeEventListener("storage", handleStorage);
+  }, [mutate]);
 
   return {
     data: data?.data,
