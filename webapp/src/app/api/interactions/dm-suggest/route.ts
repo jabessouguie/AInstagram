@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { generateTextStream, isAIConfigured } from "@/lib/ai-provider";
 import type { DMSuggestRequest } from "@/types/instagram";
 
 export const dynamic = "force-dynamic";
@@ -31,14 +31,10 @@ export async function POST(request: Request): Promise<Response> {
     );
   }
 
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
+  if (!isAIConfigured()) {
     const fallback = `Hey @${username}! I came across your profile and really loved your content — we seem to share the same vibe. Would love to follow and support each other! What kind of content are you working on lately? 🙌`;
     return textStream(fallback);
   }
-
-  const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
   const prompt = `You are an Instagram content creator called @${creatorProfile.username ?? "me"} with ${creatorProfile.followerCount?.toLocaleString("en-US") ?? "several thousand"} followers.
 
@@ -55,17 +51,7 @@ Write a short, authentic, warm and personalised DM in English (2-3 sentences max
 Reply with ONLY the DM text, no quotes, no explanations.${feedback ? `\n\nUser feedback on previous version: ${feedback}` : ""}`;
 
   try {
-    const stream = await model.generateContentStream(prompt);
-
-    const readable = new ReadableStream({
-      async start(controller) {
-        for await (const chunk of stream.stream) {
-          const text = chunk.text();
-          if (text) controller.enqueue(encoder.encode(text));
-        }
-        controller.close();
-      },
-    });
+    const readable = await generateTextStream(prompt);
 
     return new Response(readable, {
       headers: { "Content-Type": "text/plain; charset=utf-8" },

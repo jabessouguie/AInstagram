@@ -1,22 +1,10 @@
 /**
- * Gemini AI Integration
- * Uses Google's Gemini API to generate Instagram analytics insights.
- *
- * Model strategy:
- *   - gemini-3-pro-preview  → complex multi-step analysis (insights)
- *   - gemini-3-flash-preview → fast single-turn generation (DMs, carousel)
+ * Instagram insights prompts — provider-agnostic.
+ * Prompt building stays here; API calls go through ai-provider.ts.
  */
 
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { generateText, stripJsonFences, getDefaultModel } from "@/lib/ai-provider";
 import type { InsightsApiRequest, InsightsResponse, AIInsight } from "@/types/instagram";
-
-const PRO_MODEL = "gemini-2.5-flash";
-
-function getClient(): GoogleGenerativeAI {
-  const key = process.env.GEMINI_API_KEY;
-  if (!key) throw new Error("GEMINI_API_KEY is not configured");
-  return new GoogleGenerativeAI(key);
-}
 
 function buildCreatorPrompt(req: InsightsApiRequest): string {
   const { metrics, profile, posts, audienceInsights, contentInteractions, reachInsights } = req;
@@ -295,19 +283,9 @@ Génère exactement 5 insights JSON pour l'agence (sans markdown, juste le JSON)
 }
 
 export async function generateInsights(req: InsightsApiRequest): Promise<InsightsResponse> {
-  const genAI = getClient();
-  const model = genAI.getGenerativeModel({ model: PRO_MODEL });
-
   const prompt = req.mode === "agency" ? buildAgencyPrompt(req) : buildCreatorPrompt(req);
-
-  const result = await model.generateContent(prompt);
-  const text = result.response.text().trim();
-
-  // Strip markdown code fences if present
-  const clean = text
-    .replace(/```json\n?/g, "")
-    .replace(/```\n?/g, "")
-    .trim();
+  const raw = await generateText(prompt);
+  const clean = stripJsonFences(raw);
 
   let parsed: { summary: string; insights: AIInsight[] };
   try {
@@ -336,6 +314,6 @@ export async function generateInsights(req: InsightsApiRequest): Promise<Insight
     insights: parsed.insights || [],
     summary: parsed.summary || "",
     generatedAt: new Date(),
-    model: PRO_MODEL,
+    model: getDefaultModel(),
   };
 }

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { generateText, isAIConfigured, stripJsonFences } from "@/lib/ai-provider";
 import type { InstagramProfile } from "@/types/instagram";
 
 export const dynamic = "force-dynamic";
@@ -40,17 +40,12 @@ export async function POST(request: Request): Promise<NextResponse<CollabFinderR
       );
     }
 
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
+    if (!isAIConfigured()) {
       return NextResponse.json(
-        { success: false, error: "Gemini API key not configured" },
+        { success: false, error: "No AI provider configured" },
         { status: 501 }
       );
     }
-
-    const genAI = new GoogleGenerativeAI(apiKey);
-    // Use Pro for deeper reasoning and more relevant research
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-pro" });
 
     const followers = profile.followerCount ?? 0;
     const tier =
@@ -102,13 +97,9 @@ Réponds UNIQUEMENT avec ce JSON (sans markdown) :
   ]
 }`;
 
-    const result = await model.generateContent(prompt);
-    const raw = result.response
-      .text()
-      .replace(/```json\n?/g, "")
-      .replace(/```\n?/g, "")
-      .trim();
-    const parsed = JSON.parse(raw);
+    const raw = await generateText(prompt);
+    const rawClean = stripJsonFences(raw);
+    const parsed = JSON.parse(rawClean);
 
     return NextResponse.json({ success: true, data: parsed });
   } catch (error) {

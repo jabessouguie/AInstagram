@@ -1,9 +1,7 @@
 import { NextResponse } from "next/server";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { generateText, isAIConfigured } from "@/lib/ai-provider";
 
 export const dynamic = "force-dynamic";
-
-const MODEL = "gemini-2.5-flash";
 
 interface QueryRequest {
   question: string;
@@ -38,16 +36,12 @@ export async function POST(request: Request): Promise<NextResponse<QueryResponse
       return NextResponse.json({ success: false, error: "Missing question" }, { status: 400 });
     }
 
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
+    if (!isAIConfigured()) {
       return NextResponse.json(
-        { success: false, error: "GEMINI_API_KEY not configured" },
+        { success: false, error: "No AI provider configured" },
         { status: 503 }
       );
     }
-
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: MODEL });
 
     const systemPrompt = `You are an Instagram analytics assistant. The creator has given you their Instagram data and is asking a question in natural language. Answer concisely and helpfully. Use numbers and percentages when relevant. If you can't answer from the data provided, say so.
 
@@ -74,11 +68,7 @@ ${JSON.stringify(context.reachInsights ?? {}, null, 2)}
 ${JSON.stringify(context.recentPosts ?? [], null, 2)}
 `;
 
-    const result = await model.generateContent([
-      { text: systemPrompt },
-      { text: `Question: ${question}` },
-    ]);
-    const answer = result.response.text().trim();
+    const answer = await generateText(`${systemPrompt}\n\nQuestion: ${question}`);
 
     return NextResponse.json({ success: true, answer });
   } catch (error) {

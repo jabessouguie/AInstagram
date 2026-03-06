@@ -1,9 +1,7 @@
 import { NextResponse } from "next/server";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { generateText, isAIConfigured, stripJsonFences } from "@/lib/ai-provider";
 
 export const dynamic = "force-dynamic";
-
-const DEFAULT_MODEL = "gemini-2.5-flash";
 
 export interface MediaKitGenerateRequest {
   username: string;
@@ -43,8 +41,7 @@ export async function POST(request: Request): Promise<NextResponse<MediaKitGener
       feedback,
     } = body;
 
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
+    if (!isAIConfigured()) {
       return NextResponse.json({
         success: true,
         tagline: `Créateur de contenu · ${followerCount.toLocaleString("fr-FR")} abonnés`,
@@ -103,15 +100,8 @@ Réponds UNIQUEMENT avec ce JSON (sans markdown) :
   "ratePerPost": "XXX€"
 }${feedback ? `\n\nRetours utilisateur sur la version précédente : ${feedback}` : ""}`;
 
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: body.model ?? DEFAULT_MODEL });
-    const result = await model.generateContent(prompt);
-    const text = result.response
-      .text()
-      .trim()
-      .replace(/```json\n?/g, "")
-      .replace(/```\n?/g, "")
-      .trim();
+    const raw = await generateText(prompt, { model: body.model });
+    const text = stripJsonFences(raw);
 
     const parsed = JSON.parse(text) as {
       tagline: string;

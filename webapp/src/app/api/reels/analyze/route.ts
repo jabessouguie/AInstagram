@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { generateText, isAIConfigured, stripJsonFences } from "@/lib/ai-provider";
 import type {
   InstagramPost,
   InstagramProfile,
@@ -30,10 +30,9 @@ export async function POST(request: Request): Promise<NextResponse<SkipRateAnaly
       return NextResponse.json({ success: false, error: "No reels provided" }, { status: 400 });
     }
 
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
+    if (!isAIConfigured()) {
       return NextResponse.json(
-        { success: false, error: "GEMINI_API_KEY is not configured" },
+        { success: false, error: "No AI provider configured" },
         { status: 500 }
       );
     }
@@ -104,16 +103,8 @@ Réponds en JSON strict :
 - topSkippedCaptions : les 3 captions des reels les plus à risque (résumées à 60 caractères max)
 - recommendations : 4 actions concrètes et actionnables pour améliorer la rétention`;
 
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-
-    const result = await model.generateContent({
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
-      generationConfig: { responseMimeType: "application/json" },
-    });
-
-    const raw = result.response.text();
-    const parsed = JSON.parse(raw) as Partial<SkipRateInsights>;
+    const raw = await generateText(prompt);
+    const parsed = JSON.parse(stripJsonFences(raw)) as Partial<SkipRateInsights>;
 
     const insights: SkipRateInsights = {
       patterns: parsed.patterns ?? [],

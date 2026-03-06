@@ -1,0 +1,182 @@
+/**
+ * Multi-provider AI text generation abstraction.
+ *
+ * Configuration via environment variables:
+ *
+ *   AI_PROVIDER  = "gemini" | "anthropic" | "openai" | "openai-compatible"
+ *                  Auto-detects from available API keys when not set.
+ *   AI_MODEL     = Optional model override (e.g. "claude-opus-4-6", "gpt-4o-mini", "llama3")
+ *
+ *   GEMINI_API_KEY      — Google Gemini (default provider)
+ *   ANTHROPIC_API_KEY   — Anthropic Claude
+ *   OPENAI_API_KEY      — OpenAI GPT
+ *   OPENAI_BASE_URL     — OpenAI-compatible endpoint for local/self-hosted models
+ *                         (Ollama: http://localhost:11434/v1, Together.ai, etc.)
+ *
+ * Vision (image analysis) and media generation (audio/video via Veo/Lyria) are
+ * Gemini-specific and handled separately via callGeminiVision().
+ */
+
+export type AIProvider = "gemini" | "anthropic" | "openai" | "openai-compatible";
+
+const DEFAULT_MODELS: Record<AIProvider, string> = {
+  gemini: "gemini-2.5-flash",
+  anthropic: "claude-sonnet-4-6",
+  openai: "gpt-4o",
+  "openai-compatible": "llama3",
+};
+
+/** Detect which provider to use, based on env vars. */
+export function getActiveProvider(): AIProvider {
+  const explicit = process.env.AI_PROVIDER as AIProvider | undefined;
+  if (explicit && explicit in DEFAULT_MODELS) return explicit;
+  // Auto-detect from available keys (priority order)
+  if (process.env.ANTHROPIC_API_KEY) return "anthropic";
+  if (process.env.OPENAI_API_KEY) return "openai";
+  if (process.env.OPENAI_BASE_URL) return "openai-compatible";
+  return "gemini";
+}
+
+/** Return the model name to use (respects AI_MODEL override). */
+export function getDefaultModel(provider?: AIProvider): string {
+  return process.env.AI_MODEL ?? DEFAULT_MODELS[provider ?? getActiveProvider()];
+}
+
+/** True if at least one AI provider is configured. */
+export function isAIConfigured(): boolean {
+  return !!(
+    process.env.GEMINI_API_KEY ||
+    process.env.ANTHROPIC_API_KEY ||
+    process.env.OPENAI_API_KEY ||
+    process.env.OPENAI_BASE_URL
+  );
+}
+
+export interface GenerateTextOptions {
+  /** Override the model for this call (e.g. "gemini-2.5-pro" for heavier tasks). */
+  model?: string;
+  /** Maximum output tokens (default: 4096). */
+  maxTokens?: number;
+}
+
+/**
+ * Generate text from the configured AI provider.
+ * The prompt is plain text. JSON parsing and cleanup is the caller's responsibility.
+ */
+export async function generateText(
+  prompt: string,
+  options: GenerateTextOptions = {}
+): Promise<string> {
+  const provider = getActiveProvider();
+  const model = options.model ?? getDefaultModel(provider);
+  const maxTokens = options.maxTokens ?? 4096;
+
+  switch (provider) {
+    case "gemini": {
+      const { GoogleGenerativeAI } = await import("@google/generative-ai");
+      const key = process.env.GEMINI_API_KEY;
+      if (!key) throw new Error("GEMINI_API_KEY is not configured");
+      const genAI = new GoogleGenerativeAI(key);
+      const m = genAI.getGenerativeModel({ model });
+      const result = await m.generateContent(prompt);
+      return result.response.text().trim();
+    }
+
+    case "anthropic": {
+      const { default: Anthropic } = await import("@anthropic-ai/sdk");
+      const key = process.env.ANTHROPIC_API_KEY;
+      if (!key) throw new Error("ANTHROPIC_API_KEY is not configured");
+      const client = new Anthropic({ apiKey: key });
+      const msg = await client.messages.create({
+        model,
+        max_tokens: maxTokens,
+        messages: [{ role: "user", content: prompt }],
+      });
+      const block = msg.content[0];
+      return block.type === "text" ? block.text.trim() : "";
+    }
+
+    case "openai":
+    case "openai-compatible": {
+      const { default: OpenAI } = await import("openai");
+      // Ollama and some self-hosted endpoints don't require a real key
+      const key = process.env.OPENAI_API_KEY ?? "ollama";
+      const baseURL = process.env.OPENAI_BASE_URL;
+      const client = new OpenAI({ apiKey: key, ...(baseURL ? { baseURL } : {}) });
+      const completion = await client.chat.completions.create({
+        model,
+        messages: [{ role: "user", content: prompt }],
+        max_tokens: maxTokens,
+      });
+      return (completion.choices[0]?.message?.content ?? "").trim();
+    }
+  }
+}
+
+/** Strip markdown code fences from an AI response (needed for non-JSON-MIME providers). */
+export function stripJsonFences(text: string): string {
+  return text
+    .replace(/^```json?\s*/im, "")
+    .replace(/\s*```$/im, "")
+    .trim();
+}
+
+/**
+ * Gemini-only: generate text with multipart contents (images + text).
+ * Falls back to plain text prompt if no images provided.
+ * Only available when Gemini is configured.
+ */
+export async function callGeminiVision(
+  parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }>,
+  options: GenerateTextOptions = {}
+): Promise<string> {
+  const { GoogleGenerativeAI } = await import("@google/generative-ai");
+  const key = process.env.GEMINI_API_KEY;
+  if (!key) throw new Error("GEMINI_API_KEY is not configured for vision tasks");
+  const model = options.model ?? "gemini-2.5-flash";
+  const genAI = new GoogleGenerativeAI(key);
+  const m = genAI.getGenerativeModel({ model });
+  const result = await m.generateContent(parts);
+  return result.response.text().trim();
+}
+
+/**
+ * Gemini-only: generate text as a ReadableStream (for SSE / streaming UI).
+ * Falls back to a single-chunk stream when the active provider is not Gemini.
+ */
+export async function generateTextStream(
+  prompt: string,
+  options: GenerateTextOptions = {}
+): Promise<ReadableStream<Uint8Array>> {
+  const encoder = new TextEncoder();
+  const provider = getActiveProvider();
+
+  if (provider === "gemini") {
+    const { GoogleGenerativeAI } = await import("@google/generative-ai");
+    const key = process.env.GEMINI_API_KEY;
+    if (!key) throw new Error("GEMINI_API_KEY is not configured");
+    const model = options.model ?? getDefaultModel("gemini");
+    const genAI = new GoogleGenerativeAI(key);
+    const m = genAI.getGenerativeModel({ model });
+    const stream = await m.generateContentStream(prompt);
+
+    return new ReadableStream<Uint8Array>({
+      async start(controller) {
+        for await (const chunk of stream.stream) {
+          const text = chunk.text();
+          if (text) controller.enqueue(encoder.encode(text));
+        }
+        controller.close();
+      },
+    });
+  }
+
+  // Non-Gemini: buffer the full response into a single-chunk stream
+  const text = await generateText(prompt, options);
+  return new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(encoder.encode(text));
+      controller.close();
+    },
+  });
+}

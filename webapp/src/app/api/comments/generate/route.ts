@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { generateText, isAIConfigured, stripJsonFences } from "@/lib/ai-provider";
 
 export const dynamic = "force-dynamic";
 
@@ -32,8 +32,7 @@ export async function POST(request: Request): Promise<NextResponse<GenerateRespo
     return NextResponse.json({ comments: [], error: "Caption required" }, { status: 400 });
   }
 
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
+  if (!isAIConfigured()) {
     // Fallback without AI
     const fallback =
       language === "fr"
@@ -41,9 +40,6 @@ export async function POST(request: Request): Promise<NextResponse<GenerateRespo
         : ["Amazing post! 🔥", "Love this content!", "Incredible, thanks for sharing 🙌"];
     return NextResponse.json({ comments: fallback });
   }
-
-  const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
   const lang = language === "fr" ? "français" : "English";
   const toneLabel = TONE_LABELS[tone]?.[language] ?? TONE_LABELS.casual[language];
@@ -79,12 +75,8 @@ Réponds UNIQUEMENT avec un JSON valide :
 {"comments": ["commentaire 1", "commentaire 2", "commentaire 3"]}`;
 
   try {
-    const result = await model.generateContent(prompt);
-    const text = result.response.text().trim();
-    const clean = text
-      .replace(/```json\n?/g, "")
-      .replace(/```\n?/g, "")
-      .trim();
+    const raw = await generateText(prompt);
+    const clean = stripJsonFences(raw);
     const parsed = JSON.parse(clean);
     if (!Array.isArray(parsed.comments)) throw new Error("invalid");
     return NextResponse.json({ comments: parsed.comments.slice(0, 3) });

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { generateText, isAIConfigured, stripJsonFences } from "@/lib/ai-provider";
 import type { InstagramProfile } from "@/types/instagram";
 import type { CollabMatch } from "@/app/api/collabs/route";
 
@@ -22,16 +22,12 @@ export async function POST(request: Request): Promise<NextResponse<CollabEmailRe
     const body: CollabEmailRequest & { feedback?: string } = await request.json();
     const { collab, profile, language = "fr", feedback } = body;
 
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
+    if (!isAIConfigured()) {
       return NextResponse.json(
-        { success: false, error: "Gemini API key not configured" },
+        { success: false, error: "No AI provider configured" },
         { status: 501 }
       );
     }
-
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
     const lang = language === "fr" ? "français" : "anglais";
     const prompt = `Tu es un créateur de contenu Instagram @${profile.username ?? "creator"} avec ${(profile.followerCount ?? 0).toLocaleString("fr-FR")} abonnés.
@@ -56,12 +52,8 @@ Réponds UNIQUEMENT avec ce JSON (sans markdown ni guillemets autour) :
   "body": "Corps complet de l'email"
 }${feedback ? `\n\nRetours utilisateur sur la version précédente : ${feedback}` : ""}`;
 
-    const result = await model.generateContent(prompt);
-    const raw = result.response
-      .text()
-      .replace(/```json\n?/g, "")
-      .replace(/```\n?/g, "")
-      .trim();
+    const rawText = await generateText(prompt);
+    const raw = stripJsonFences(rawText);
     const parsed = JSON.parse(raw);
 
     return NextResponse.json({ success: true, data: parsed });

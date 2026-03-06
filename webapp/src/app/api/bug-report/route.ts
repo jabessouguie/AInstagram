@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { callGeminiVision, generateText, isAIConfigured, stripJsonFences } from "@/lib/ai-provider";
 
 export const dynamic = "force-dynamic";
 
@@ -29,18 +29,14 @@ export async function POST(request: Request): Promise<NextResponse<BugReportResp
       );
     }
 
-    const geminiKey = process.env.GEMINI_API_KEY;
     const githubToken = process.env.GITHUB_TOKEN;
     const githubRepo = process.env.GITHUB_REPO; // "owner/repo"
 
-    // ── Step 1: Analyse with Gemini ───────────────────────────────────────────
+    // ── Step 1: Analyse with AI ───────────────────────────────────────────────
     let issueTitle = "Bug signalé par un utilisateur";
     let issueBody = "";
 
-    if (geminiKey) {
-      const genAI = new GoogleGenerativeAI(geminiKey);
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-
+    if (isAIConfigured()) {
       const contextText = [
         pageUrl ? `Page : ${pageUrl}` : "",
         userAgent ? `Navigateur : ${userAgent}` : "",
@@ -49,15 +45,7 @@ export async function POST(request: Request): Promise<NextResponse<BugReportResp
         .filter(Boolean)
         .join("\n");
 
-      const parts: Parameters<typeof model.generateContent>[0] = [];
-
-      if (screenshot) {
-        parts.push({
-          inlineData: { mimeType: "image/png", data: screenshot },
-        });
-      }
-
-      parts.push(`Tu es un assistant de triage de bugs pour une application web d'analyse Instagram.
+      const textPrompt = `Tu es un assistant de triage de bugs pour une application web d'analyse Instagram.
 
 Analyse ${screenshot ? "cette capture d'écran" : "la description ci-dessous"} et identifie le problème.
 
@@ -76,17 +64,21 @@ Réponds UNIQUEMENT avec ce JSON (sans markdown) :
   "body": "Description markdown complète",
   "severity": "low|medium|high|critical"
 }
-`);
+`;
 
-      const result = await model.generateContent(parts);
-      const raw = result.response
-        .text()
-        .replace(/```json\n?/g, "")
-        .replace(/```\n?/g, "")
-        .trim();
+      let raw: string;
+      if (screenshot && process.env.GEMINI_API_KEY) {
+        // Vision analysis: only available with Gemini
+        raw = await callGeminiVision([
+          { inlineData: { mimeType: "image/png", data: screenshot } },
+          { text: textPrompt },
+        ]);
+      } else {
+        raw = await generateText(textPrompt);
+      }
 
       try {
-        const parsed = JSON.parse(raw) as {
+        const parsed = JSON.parse(stripJsonFences(raw)) as {
           title: string;
           body: string;
           severity: string;
@@ -97,7 +89,7 @@ Réponds UNIQUEMENT avec ce JSON (sans markdown) :
         issueBody = description ?? "Pas de description fournie.";
       }
     } else {
-      // No Gemini key — use raw description
+      // No AI configured — use raw description
       issueTitle = description?.substring(0, 80) ?? "Bug signalé";
       issueBody = `**Description :** ${description ?? "—"}\n\n**Page :** ${pageUrl ?? "N/A"}\n**Navigateur :** ${userAgent ?? "N/A"}`;
     }

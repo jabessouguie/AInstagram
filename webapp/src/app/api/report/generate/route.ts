@@ -1,10 +1,8 @@
 import { NextResponse } from "next/server";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { generateText, isAIConfigured, stripJsonFences } from "@/lib/ai-provider";
 import type { ReportGenerateResponse, InstagramAnalytics } from "@/types/instagram";
 
 export const dynamic = "force-dynamic";
-
-const MODEL = "gemini-2.5-flash";
 
 function buildReportPrompt(data: InstagramAnalytics): string {
   const { profile, metrics, audienceInsights, contentInteractions, reachInsights, posts } = data;
@@ -98,25 +96,16 @@ export async function POST(request: Request): Promise<NextResponse<ReportGenerat
   try {
     const data: InstagramAnalytics = await request.json();
 
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
+    if (!isAIConfigured()) {
       return NextResponse.json(
-        { success: false, error: "GEMINI_API_KEY not configured" },
+        { success: false, error: "No AI provider configured" },
         { status: 503 }
       );
     }
 
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: MODEL });
     const prompt = buildReportPrompt(data);
-
-    const result = await model.generateContent(prompt);
-    const text = result.response.text().trim();
-    const jsonText = text
-      .replace(/^```json?\s*/i, "")
-      .replace(/\s*```$/i, "")
-      .trim();
-    const report = JSON.parse(jsonText);
+    const raw = await generateText(prompt);
+    const report = JSON.parse(stripJsonFences(raw));
     report.generatedAt = report.generatedAt ?? new Date().toISOString();
 
     return NextResponse.json({ success: true, report });

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { generateText, isAIConfigured, stripJsonFences } from "@/lib/ai-provider";
 import { InstagramGraphAPI } from "@/lib/instagram-graph-api";
 import type {
   AudienceSegmentsResponse,
@@ -11,8 +11,6 @@ import type {
 } from "@/types/instagram";
 
 export const dynamic = "force-dynamic";
-
-const MODEL = "gemini-2.5-flash";
 
 interface SegmentsRequest {
   profile: Partial<InstagramProfile>;
@@ -115,10 +113,9 @@ export async function POST(request: Request): Promise<NextResponse<AudienceSegme
   try {
     const body: SegmentsRequest = await request.json();
 
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
+    if (!isAIConfigured()) {
       return NextResponse.json(
-        { success: false, error: "GEMINI_API_KEY not configured", dataSource: "export_inference" },
+        { success: false, error: "No AI provider configured", dataSource: "export_inference" },
         { status: 503 }
       );
     }
@@ -141,19 +138,9 @@ export async function POST(request: Request): Promise<NextResponse<AudienceSegme
       }
     }
 
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: MODEL });
     const prompt = buildPrompt(body, comments);
-
-    const result = await model.generateContent(prompt);
-    const text = result.response.text().trim();
-
-    // Strip possible markdown fences
-    const jsonText = text
-      .replace(/^```json?\s*/i, "")
-      .replace(/\s*```$/i, "")
-      .trim();
-    const parsed = JSON.parse(jsonText) as {
+    const raw = await generateText(prompt);
+    const parsed = JSON.parse(stripJsonFences(raw)) as {
       personas: AudiencePersona[];
       brandVoice: BrandVoiceAudit;
     };
