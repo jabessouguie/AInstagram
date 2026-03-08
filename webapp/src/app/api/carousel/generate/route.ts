@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { generateText, isAIConfigured, stripJsonFences, GEMINI_FLASH } from "@/lib/ai-provider";
 import type {
   CarouselGenerateRequest,
   CarouselGenerateResponse,
@@ -8,10 +8,16 @@ import type {
 
 export const dynamic = "force-dynamic";
 
-const DEFAULT_MODEL = "gemini-2.5-flash";
-
 function buildCarouselPrompt(req: CarouselGenerateRequest): string {
-  const { subject, audience, fonts, numSlides, previousCaptions, language = "en" } = req;
+  const {
+    subject,
+    audience,
+    fonts,
+    numSlides,
+    previousCaptions,
+    language = "en",
+    promptContext,
+  } = req;
 
   const lang = language === "fr" ? "French" : "English";
 
@@ -72,6 +78,7 @@ ${captionsSection}
 - As long as possible — deliver real value, don't pad
 - 3–5 lowercase hashtags at the end (no hashtag stuffing)
 
+${promptContext ? `### Performance insights from your analytics\n${promptContext}\n` : ""}
 Reply ONLY with this JSON (no markdown fences, no extra text):
 {
   "slides": [
@@ -98,9 +105,8 @@ export async function POST(request: Request): Promise<NextResponse<CarouselGener
       );
     }
 
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      // Return mock response when API key is missing
+    if (!isAIConfigured()) {
+      // Return mock response when no AI provider is configured
       const isFr = body.language === "fr";
       const mockSlides: CarouselSlideContent[] = Array.from({ length: body.numSlides }, (_, i) => ({
         title: i === 0 ? body.subject : isFr ? `Point ${i + 1}` : `Tip ${i + 1}`,
@@ -138,42 +144,35 @@ export async function POST(request: Request): Promise<NextResponse<CarouselGener
       });
     }
 
-    const genAI = new GoogleGenerativeAI(apiKey);
+    // If photos are provided and provider is Gemini, use vision for aesthetic analysis
+    const { getActiveProvider, callGeminiVision } = await import("@/lib/ai-provider");
+    const activeProvider = getActiveProvider();
 
-    // If photos are provided, use vision model to analyze them for aesthetic context
-    const parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> = [];
+    let rawText: string;
 
-    if (body.photos.length > 0) {
-      parts.push({
-        text: `Here are ${body.photos.length} photos provided by the creator (indexed 0 to ${body.photos.length - 1}). For each slide, set photoIndex to the photo that best matches the slide's topic and mood. Analyse their visual style to align the text content.\n`,
-      });
-      // Send up to 3 photos to Gemini for visual analysis
+    if (body.photos.length > 0 && activeProvider === "gemini") {
+      // Use Gemini Vision to analyze photos and generate carousel content
+      const parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> = [
+        {
+          text: `Here are ${body.photos.length} photos provided by the creator (indexed 0 to ${body.photos.length - 1}). For each slide, set photoIndex to the photo that best matches the slide's topic and mood. Analyse their visual style to align the text content.\n`,
+        },
+      ];
       for (const photo of body.photos.slice(0, 3)) {
         const match = photo.match(/^data:([^;]+);base64,(.+)$/);
         if (match) {
-          parts.push({
-            inlineData: {
-              mimeType: match[1],
-              data: match[2],
-            },
-          });
+          parts.push({ inlineData: { mimeType: match[1]!, data: match[2]! } });
         }
       }
       parts.push({ text: "\n" + buildCarouselPrompt(body) });
+      rawText = await callGeminiVision(parts, { model: body.model ?? GEMINI_FLASH });
     } else {
-      parts.push({ text: buildCarouselPrompt(body) });
+      // Text-only generation (works for Gemini, Anthropic, OpenAI)
+      rawText = await generateText(buildCarouselPrompt(body), {
+        model: body.model ?? GEMINI_FLASH,
+      });
     }
 
-    const model = genAI.getGenerativeModel({ model: body.model ?? DEFAULT_MODEL });
-    const result = await model.generateContent(parts);
-    const text = result.response
-      .text()
-      .trim()
-      .replace(/```json\n?/g, "")
-      .replace(/```\n?/g, "")
-      .trim();
-
-    const parsed = JSON.parse(text) as {
+    const parsed = JSON.parse(stripJsonFences(rawText)) as {
       slides: CarouselSlideContent[];
       instagramDescription: string;
       hashtags: string[];

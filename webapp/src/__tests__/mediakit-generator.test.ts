@@ -129,4 +129,64 @@ describe("generateMediaKitHTML", () => {
     expect(html).toContain("<body");
     expect(html).toContain("</body>");
   });
+
+  it("handles missing reach and audience insights", () => {
+    const minimalAnalytics: InstagramAnalytics = {
+      ...fakeAnalytics,
+      metrics: {
+        ...fakeAnalytics.metrics,
+        contentTypePerformance: [], // empty content performance
+      },
+      reachInsights: undefined,
+      audienceInsights: undefined,
+    };
+
+    // minimal config
+    const minimalConfig = {
+      ...defaultMediaKitConfig,
+      services: [],
+      contactEmail: "",
+      ratePerPost: undefined,
+      profilePicUrl: undefined,
+      bannerImageUrl: "http://banner.jpg",
+      displayName: "Display Name",
+    };
+
+    const minimalHtml = generateMediaKitHTML(minimalAnalytics, minimalConfig);
+    expect(minimalHtml).toContain("Données non disponibles");
+    expect(minimalHtml).toContain("Display Name");
+    expect(minimalHtml).toContain("http://banner.jpg");
+    // it will render the profile username initial when no picture
+    expect(minimalHtml).toContain("T"); // "Testcreator" first letter
+  });
+
+  it("handles low percentage ring logic and SVG edge cases", () => {
+    const edgeAnalytics: InstagramAnalytics = {
+      ...fakeAnalytics,
+      metrics: {
+        ...fakeAnalytics.metrics,
+        engagementRate: 5, // pct < 10 branch in svgRing
+      },
+      reachInsights: {
+        accountsReached: 1000,
+        impressions: 2000,
+        nonFollowerReachPct: 5, // pct < 10 for secondary ring
+        followerReachPct: 95,
+        period: "1 month",
+        accountsReachedChange: "N/A",
+        impressionsChange: "N/A",
+        profileVisits: 0,
+        profileVisitsChange: "N/A",
+        externalLinkTaps: 0,
+      },
+      audienceInsights: {
+        ...fakeAnalytics.audienceInsights,
+        genderSplit: { female: 0, male: 0 }, // edge case: no gender data
+      } as any,
+    };
+
+    const edgeHtml = generateMediaKitHTML(edgeAnalytics, defaultMediaKitConfig);
+    expect(edgeHtml).toContain("5.0%");
+    expect(edgeHtml).not.toContain("Hommes");
+  });
 });

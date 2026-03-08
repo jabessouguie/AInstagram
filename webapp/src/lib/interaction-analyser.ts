@@ -12,14 +12,29 @@ import fs from "fs";
 import path from "path";
 import * as cheerio from "cheerio";
 import type { AnyNode } from "domhandler";
-import type { InteractionAnalysis, UnfollowCandidate, InstagramFollower } from "@/types/instagram";
+import type {
+  InteractionAnalysis,
+  UnfollowCandidate,
+  DMSuggestion,
+  InstagramFollower,
+} from "@/types/instagram";
 
 // ─── Path helpers ─────────────────────────────────────────────────────────────
 
+/**
+ * Retrieves the root directory for Instagram data.
+ * Defaults to '../data' relative to the process current working directory.
+ * @returns {string} The absolute path to the data root.
+ */
 function getDataRoot(): string {
   return process.env.INSTAGRAM_DATA_PATH ?? path.join(process.cwd(), "..", "data");
 }
 
+/**
+ * Locates the first Instagram export folder within the data root.
+ * Export folders are expected to start with 'instagram-'.
+ * @returns {string | null} The absolute path to the export folder or null if not found.
+ */
 function findExportFolder(): string | null {
   const root = getDataRoot();
   if (!fs.existsSync(root)) return null;
@@ -31,6 +46,11 @@ function findExportFolder(): string | null {
   return folder ? path.join(root, folder) : null;
 }
 
+/**
+ * Loads and parses an HTML file using Cheerio.
+ * @param {string} filePath Path to the HTML file.
+ * @returns {cheerio.CheerioAPI | null} Cheerio instance or null if file doesn't exist.
+ */
 function loadHtml(filePath: string): cheerio.CheerioAPI | null {
   if (!fs.existsSync(filePath)) return null;
   const html = fs.readFileSync(filePath, "utf-8");
@@ -39,6 +59,12 @@ function loadHtml(filePath: string): cheerio.CheerioAPI | null {
 
 // ─── Format detection ─────────────────────────────────────────────────────────
 
+/**
+ * Detects if the export folder uses the JSON format instead of HTML.
+ * Checks for specific files like 'followers_1.json'.
+ * @param {string} exportFolder Path to the export folder.
+ * @returns {boolean} True if it is a JSON export.
+ */
 function checkIsJsonExport(exportFolder: string): boolean {
   return (
     fs.existsSync(
@@ -77,6 +103,12 @@ interface JsonMessageFile {
 
 // ─── JSON-format parsers ──────────────────────────────────────────────────────
 
+/**
+ * Parses followers from JSON files.
+ * Maps lowercased usernames to their follow date.
+ * @param {string} exportFolder Path to the export folder.
+ * @returns {Map<string, Date>} Map of usernames to follow dates.
+ */
 function parseFollowersJsonAnalyser(exportFolder: string): Map<string, Date> {
   const dir = path.join(exportFolder, "connections", "followers_and_following");
   const result = new Map<string, Date>();
@@ -305,6 +337,12 @@ const FR_MONTHS: Record<string, number> = {
   décembre: 11,
 };
 
+/**
+ * Parses a French date string from the Instagram export.
+ * Handles variations in month abbreviations.
+ * @param {string} text The date string.
+ * @returns {Date | null} Parsed date or null if parsing failed.
+ */
 function parseFrDate(text: string): Date | null {
   if (!text) return null;
   const m = text
@@ -352,6 +390,11 @@ function parseFollowerFile(filePath: string): InstagramFollower[] {
 
 // ─── Main analysis function ───────────────────────────────────────────────────
 
+/**
+ * Analyses Instagram interactions from a local export.
+ * Identifies never-interacted followers, DM suggestions, and unfollow candidates based on follow-back status and interaction history.
+ * @returns {Promise<InteractionAnalysis | null>} Analysis results or null if no export found.
+ */
 export async function analyseInteractions(): Promise<InteractionAnalysis | null> {
   const exportFolder = findExportFolder();
   if (!exportFolder) return null;
@@ -416,9 +459,13 @@ export async function analyseInteractions(): Promise<InteractionAnalysis | null>
   const ONE_MONTH_MS = 30 * 24 * 60 * 60 * 1000;
   const now = Date.now();
 
-  // Tab 1: mutual follows who have never interacted (liked/commented)
+  // Tab 1: mutual follows who never interacted (liked/commented)
   const neverInteracted: UnfollowCandidate[] = [];
-  // Tab 2: you follow, they don't follow back, last DM > 1 month ago → unfollow
+  // Tab 2: you follow, they don't follow back, never DM'd → suggest DM
+  const dmSuggestionsNoFollowBack: DMSuggestion[] = [];
+  // Tab 3: mutual follow, never DM'd → suggest DM
+  const dmSuggestionsMutual: DMSuggestion[] = [];
+  // Tab 4: you follow, they don't follow back, DM sent > 1 month ago → unfollow
   const unfollowCandidates: UnfollowCandidate[] = [];
 
   for (const username of followingSet) {
@@ -426,16 +473,34 @@ export async function analyseInteractions(): Promise<InteractionAnalysis | null>
     const profileUrl = `https://www.instagram.com/${username}`;
     const theyFollowBack = followerSet.has(username);
     const neverInteractedWith = !interactors.has(username);
+    const hasDmRecord = sentDMs.has(username);
+    const dmRecord = sentDMs.get(username);
 
-    // Tab 1: mutual follows who never interacted
-    if (theyFollowBack && neverInteractedWith) {
-      neverInteracted.push({ username, followedSince, profileUrl });
-    }
-
-    // Tab 2: they don't follow back and last DM > 1 month ago → unfollow candidate
-    if (!theyFollowBack) {
-      const dmRecord = sentDMs.get(username);
-      if (dmRecord && now - dmRecord.lastSentAt.getTime() > ONE_MONTH_MS) {
+    if (theyFollowBack) {
+      if (neverInteractedWith) {
+        // Tab 1: mutual follow, never interacted
+        neverInteracted.push({ username, followedSince, profileUrl });
+      }
+      if (!hasDmRecord) {
+        // Tab 3: mutual follow, never DM'd
+        dmSuggestionsMutual.push({
+          username,
+          followedSince,
+          profileUrl,
+          reason: "Vous vous suivez mutuellement mais n'avez jamais échangé de message",
+        });
+      }
+    } else {
+      if (!hasDmRecord) {
+        // Tab 2: you follow, they don't follow back, never DM'd
+        dmSuggestionsNoFollowBack.push({
+          username,
+          followedSince,
+          profileUrl,
+          reason: "Vous les suivez mais ils ne vous suivent pas encore — un DM pourrait changer ça",
+        });
+      } else if (dmRecord && now - dmRecord.lastSentAt.getTime() > ONE_MONTH_MS) {
+        // Tab 4: DM sent > 1 month ago, still no follow-back
         unfollowCandidates.push({
           username,
           followedSince,
@@ -446,12 +511,24 @@ export async function analyseInteractions(): Promise<InteractionAnalysis | null>
     }
   }
 
-  const byFollowedDesc = (a: UnfollowCandidate, b: UnfollowCandidate) =>
-    b.followedSince.getTime() - a.followedSince.getTime();
+  const byFollowedDesc = (
+    a: UnfollowCandidate | DMSuggestion,
+    b: UnfollowCandidate | DMSuggestion
+  ) => b.followedSince.getTime() - a.followedSince.getTime();
 
   return {
-    neverInteracted: neverInteracted.sort(byFollowedDesc).slice(0, 200),
-    unfollowCandidates: unfollowCandidates.sort(byFollowedDesc).slice(0, 100),
+    neverInteracted: (neverInteracted as (UnfollowCandidate | DMSuggestion)[])
+      .sort(byFollowedDesc)
+      .slice(0, 200) as UnfollowCandidate[],
+    dmSuggestionsNoFollowBack: (dmSuggestionsNoFollowBack as (UnfollowCandidate | DMSuggestion)[])
+      .sort(byFollowedDesc)
+      .slice(0, 100) as DMSuggestion[],
+    dmSuggestionsMutual: (dmSuggestionsMutual as (UnfollowCandidate | DMSuggestion)[])
+      .sort(byFollowedDesc)
+      .slice(0, 100) as DMSuggestion[],
+    unfollowCandidates: (unfollowCandidates as (UnfollowCandidate | DMSuggestion)[])
+      .sort(byFollowedDesc)
+      .slice(0, 100) as UnfollowCandidate[],
     dataSource: "export" as const,
   };
 }
@@ -468,6 +545,8 @@ export async function analyseInteractionsFromAPI(
 ): Promise<InteractionAnalysis> {
   return {
     neverInteracted: [],
+    dmSuggestionsNoFollowBack: [],
+    dmSuggestionsMutual: [],
     unfollowCandidates: [],
     dataSource: "api" as const,
   };

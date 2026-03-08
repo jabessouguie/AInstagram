@@ -122,6 +122,20 @@ export default function HomePage() {
           </div>
         </div>
       </div>
+
+      {/* Footer */}
+      <footer className="mt-12 border-t border-slate-800/60 py-6 text-center text-xs text-slate-600">
+        <p>
+          © {new Date().getFullYear()} InstaInsights{" · "}
+          <Link href="/privacy" className="underline transition-colors hover:text-slate-400">
+            Politique de confidentialité
+          </Link>
+          {" · "}
+          <Link href="/deletion" className="underline transition-colors hover:text-slate-400">
+            Suppression des données
+          </Link>
+        </p>
+      </footer>
     </main>
   );
 }

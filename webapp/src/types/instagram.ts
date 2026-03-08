@@ -297,6 +297,8 @@ export interface CarouselGenerateRequest {
   language?: "en" | "fr";
   /** Gemini model override. Defaults to "gemini-2.5-flash". */
   model?: string;
+  /** Optional content prompt context from analytics — injected into the generation prompt */
+  promptContext?: string;
 }
 
 export interface CarouselGenerateResponse {
@@ -348,12 +350,25 @@ export interface UnfollowCandidate {
   lastDmSentAt?: Date; // undefined = never DM'd
 }
 
+export interface DMSuggestion {
+  username: string;
+  followedSince: Date;
+  profileUrl: string;
+  /** Fetched bio or null if unavailable */
+  bio?: string | null;
+  reason: string;
+}
+
 export interface InteractionAnalysis {
-  /** Accounts you follow that have never liked or commented on your posts */
+  /** Mutual follows who never liked or commented */
   neverInteracted: UnfollowCandidate[];
-  /** Accounts you follow, don't follow back, DM sent > 1 month ago → unfollow */
+  /** You follow, they don't follow back, never DM'd → suggest DM */
+  dmSuggestionsNoFollowBack: DMSuggestion[];
+  /** Mutual follow, you never DM'd them → suggest DM */
+  dmSuggestionsMutual: DMSuggestion[];
+  /** You follow, they don't follow back, DM sent > 1 month ago → unfollow */
   unfollowCandidates: UnfollowCandidate[];
-  /** "api" = sourced from Graph API comments; "export" = sourced from local export */
+  /** "api" = sourced from Graph API; "export" = sourced from local export */
   dataSource?: "api" | "export";
 }
 
@@ -483,6 +498,13 @@ export interface SkipRateInsights {
 export interface SkipRateAnalysisResponse {
   success: boolean;
   insights?: SkipRateInsights;
+  /** Prompt context derived from the analysis — save to localStorage for future generations */
+  captionContext?: {
+    topThemes: string[];
+    bestAngles: string[];
+    skipPatterns: string[];
+    promptFragment: string;
+  };
   error?: string;
 }
 

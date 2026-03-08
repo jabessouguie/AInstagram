@@ -20,6 +20,7 @@ import {
   X,
   Video,
   TrendingUp,
+  Palette,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { InstagramProfile } from "@/types/instagram";
@@ -50,6 +51,7 @@ export function Header({ profile, mode, agencyName }: HeaderProps) {
     { href: "/creator/collabs", label: t("nav.collabs"), icon: Handshake },
     { href: "/creator/comments", label: t("nav.comments"), icon: MessageSquarePlus },
     { href: "/creator/connect", label: t("nav.connect"), icon: Link2 },
+    { href: "/creator/settings", label: t("nav.settings"), icon: Palette },
   ];
   return (
     <header className="sticky top-0 z-40 border-b border-border/40 bg-background/80 backdrop-blur-xl">

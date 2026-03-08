@@ -31,6 +31,8 @@ import type {
   ReelGenerateResponse,
   ReelAudioResponse,
 } from "@/types/instagram";
+import { loadBrandSettings } from "@/lib/brand-settings-store";
+import { saveCarouselContext, saveStoriesContext } from "@/lib/content-prompt-context-store";
 
 // ─── Canvas renderer ─────────────────────────────────────────────────────────
 
@@ -367,6 +369,24 @@ export default function CarouselPage() {
   const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
   const [audioResult, setAudioResult] = useState<ReelAudioResponse | null>(null);
 
+  // Analytics state (carousel + stories)
+  const [isAnalyzingCarousel, setIsAnalyzingCarousel] = useState(false);
+  const [carouselAnalysis, setCarouselAnalysis] = useState<{
+    topPerformingSlideTypes: string[];
+    topContentAngles: string[];
+    weakSlidePatterns: string[];
+    promptFragment: string;
+  } | null>(null);
+  const [carouselContextApplied, setCarouselContextApplied] = useState(false);
+  const [isAnalyzingStories, setIsAnalyzingStories] = useState(false);
+  const [storiesAnalysis, setStoriesAnalysis] = useState<{
+    topStoryFormats: string[];
+    bestEngagementDrivers: string[];
+    weakPatterns: string[];
+    promptFragment: string;
+  } | null>(null);
+  const [storiesContextApplied, setStoriesContextApplied] = useState(false);
+
   // ── Convert reel data URL → blob URL (more reliable for <video> playback and download) ───
   useEffect(() => {
     let objectUrl: string | null = null;
@@ -394,19 +414,16 @@ export default function CarouselPage() {
     };
   }, [reelResult]);
 
-  // ── Persistent visual identity (localStorage) ───────────────────────────
+  // ── Load brand settings (fonts + colors) from settings page ─────────────
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem("insta-visual-identity");
-      if (saved) {
-        const vi = JSON.parse(saved);
-        if (vi.fonts) setFonts(vi.fonts);
-        if (vi.primaryColor) setPrimaryColor(vi.primaryColor);
-        if (vi.accentColor) setAccentColor(vi.accentColor);
-      }
-    } catch {
-      // ignore corrupt localStorage
-    }
+    const brand = loadBrandSettings();
+    setFonts({
+      title: brand.fontTitle,
+      subtitle: brand.fontSubtitle,
+      body: brand.fontBody,
+    });
+    setPrimaryColor(brand.primaryColor);
+    setAccentColor(brand.accentColor);
   }, []);
 
   useEffect(() => {
@@ -719,6 +736,75 @@ export default function CarouselPage() {
       setAudioResult({ success: false, error: t("reels.error.generic") });
     } finally {
       setIsGeneratingAudio(false);
+    }
+  };
+
+  // ── Carousel analytics ────────────────────────────────────────────────────
+  const handleAnalyzeCarousel = async () => {
+    if (!data?.posts) return;
+    setIsAnalyzingCarousel(true);
+    setCarouselAnalysis(null);
+    try {
+      const carouselPosts = data.posts
+        .filter((p) => p.mediaType === "CAROUSEL")
+        .slice(0, 20)
+        .map((p) => ({
+          id: p.id,
+          caption: p.caption,
+          likes: p.likes,
+          comments: p.comments,
+          shares: p.shares,
+          savedCount: p.savedCount,
+          reach: p.reach,
+          slides: [] as { index: number; text: string }[],
+        }));
+
+      if (!carouselPosts.length) return;
+
+      const res = await fetch("/api/carousel/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ posts: carouselPosts, profile: data.profile }),
+      });
+      const json: { success: boolean; analysis?: typeof carouselAnalysis } = await res.json();
+      if (json.success && json.analysis) setCarouselAnalysis(json.analysis);
+    } catch {
+      // ignore
+    } finally {
+      setIsAnalyzingCarousel(false);
+    }
+  };
+
+  // ── Stories analytics ─────────────────────────────────────────────────────
+  const handleAnalyzeStories = async () => {
+    if (!data?.posts) return;
+    setIsAnalyzingStories(true);
+    setStoriesAnalysis(null);
+    try {
+      const storyPosts = data.posts
+        .filter((p) => p.mediaType === "STORY")
+        .slice(0, 30)
+        .map((p) => ({
+          id: p.id,
+          caption: p.caption,
+          replies: p.comments,
+          impressions: p.impressions,
+          linkTaps: 0,
+        }));
+
+      if (!storyPosts.length) return;
+
+      const res = await fetch("/api/stories/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stories: storyPosts, profile: data.profile }),
+      });
+      const json: { success: boolean; analysis?: typeof storiesAnalysis } = await res.json();
+      if (json.success && json.analysis) setStoriesAnalysis(json.analysis);
+    } catch {
+      // ignore
+    } finally {
+      setIsAnalyzingStories(false);
     }
   };
 
@@ -1240,6 +1326,164 @@ export default function CarouselPage() {
           </div>
         )}{" "}
         {/* end activeFormat === "carousel" */}
+        {/* ── Carousel analytics panel ── */}
+        {activeFormat === "carousel" && data?.posts && (
+          <div className="mt-6 space-y-4 rounded-2xl border border-border bg-card p-5">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-semibold">Analyser mes carousels</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Identifie les types de slides et angles qui performent le mieux via IA. (Gemini
+                  Vision utilisé si disponible)
+                </p>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleAnalyzeCarousel}
+                disabled={
+                  isAnalyzingCarousel ||
+                  !data?.posts?.filter((p) => p.mediaType === "CAROUSEL").length
+                }
+                className="shrink-0 gap-1.5"
+              >
+                {isAnalyzingCarousel ? (
+                  <>
+                    <span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />{" "}
+                    Analyse...
+                  </>
+                ) : (
+                  "Analyser"
+                )}
+              </Button>
+            </div>
+            {carouselAnalysis && (
+              <div className="space-y-3">
+                {carouselAnalysis.topPerformingSlideTypes.length > 0 && (
+                  <div>
+                    <p className="mb-1 text-xs font-semibold text-emerald-400">
+                      Slides performants
+                    </p>
+                    <ul className="space-y-0.5">
+                      {carouselAnalysis.topPerformingSlideTypes.map((s, i) => (
+                        <li key={i} className="text-xs text-muted-foreground">
+                          • {s}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {carouselAnalysis.weakSlidePatterns.length > 0 && (
+                  <div>
+                    <p className="mb-1 text-xs font-semibold text-red-400">À éviter</p>
+                    <ul className="space-y-0.5">
+                      {carouselAnalysis.weakSlidePatterns.map((s, i) => (
+                        <li key={i} className="text-xs text-muted-foreground">
+                          • {s}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {carouselAnalysis.promptFragment && (
+                  <div className="flex items-start justify-between gap-3 rounded-lg border border-primary/20 bg-primary/5 p-3">
+                    <p className="flex-1 text-xs text-foreground">
+                      {carouselAnalysis.promptFragment}
+                    </p>
+                    <Button
+                      size="sm"
+                      className="shrink-0 text-xs"
+                      variant={carouselContextApplied ? "outline" : "default"}
+                      onClick={() => {
+                        saveCarouselContext({
+                          topPerformingSlideTypes: carouselAnalysis.topPerformingSlideTypes,
+                          topContentAngles: carouselAnalysis.topContentAngles,
+                          promptFragment: carouselAnalysis.promptFragment,
+                        });
+                        setCarouselContextApplied(true);
+                        setTimeout(() => setCarouselContextApplied(false), 3000);
+                      }}
+                    >
+                      {carouselContextApplied ? "✓ Appliqué" : "Appliquer"}
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+        {/* ── Stories analytics panel ── */}
+        {activeFormat === "stories" && data?.posts && (
+          <div className="mt-6 space-y-4 rounded-2xl border border-border bg-card p-5">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-semibold">Analyser mes stories</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Identifie les formats et angles qui génèrent le plus d'interactions.
+                </p>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleAnalyzeStories}
+                disabled={
+                  isAnalyzingStories || !data?.posts?.filter((p) => p.mediaType === "STORY").length
+                }
+                className="shrink-0 gap-1.5"
+              >
+                {isAnalyzingStories ? (
+                  <>
+                    <span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />{" "}
+                    Analyse...
+                  </>
+                ) : (
+                  "Analyser"
+                )}
+              </Button>
+            </div>
+            {storiesAnalysis && (
+              <div className="space-y-3">
+                {storiesAnalysis.topStoryFormats.length > 0 && (
+                  <div>
+                    <p className="mb-1 text-xs font-semibold text-emerald-400">
+                      Formats performants
+                    </p>
+                    <ul className="space-y-0.5">
+                      {storiesAnalysis.topStoryFormats.map((s, i) => (
+                        <li key={i} className="text-xs text-muted-foreground">
+                          • {s}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {storiesAnalysis.promptFragment && (
+                  <div className="flex items-start justify-between gap-3 rounded-lg border border-primary/20 bg-primary/5 p-3">
+                    <p className="flex-1 text-xs text-foreground">
+                      {storiesAnalysis.promptFragment}
+                    </p>
+                    <Button
+                      size="sm"
+                      className="shrink-0 text-xs"
+                      variant={storiesContextApplied ? "outline" : "default"}
+                      onClick={() => {
+                        saveStoriesContext({
+                          topStoryFormats: storiesAnalysis.topStoryFormats,
+                          bestEngagementDrivers: storiesAnalysis.bestEngagementDrivers,
+                          promptFragment: storiesAnalysis.promptFragment,
+                        });
+                        setStoriesContextApplied(true);
+                        setTimeout(() => setStoriesContextApplied(false), 3000);
+                      }}
+                    >
+                      {storiesContextApplied ? "✓ Appliqué" : "Appliquer"}
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
         {/* ── Stories format ── */}
         {activeFormat === "stories" && (
           <div className="grid gap-6 lg:grid-cols-[1fr_420px]">

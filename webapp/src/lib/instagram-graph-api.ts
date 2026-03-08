@@ -159,7 +159,8 @@ export class InstagramGraphAPI {
         out[item.name] = item.value ?? item.values?.[0]?.value ?? 0;
       }
       return out;
-    } catch {
+    } catch (e) {
+      console.error(`[getMediaInsights] mediaId=${mediaId} isReel=${isReel}:`, e);
       return {};
     }
   }
@@ -281,7 +282,7 @@ export class InstagramGraphAPI {
     followerCountByDay: Array<{ endTime: string; value: number }>;
   }> {
     try {
-      const since = sinceTs ?? Math.floor(Date.now() / 1000) - 30 * 24 * 3600;
+      const since = sinceTs ?? Math.floor(Date.now() / 1000) - 90 * 24 * 3600;
       const until = untilTs ?? Math.floor(Date.now() / 1000);
 
       // follower_count may not be available on all tokens — fetch separately, gracefully
@@ -497,8 +498,14 @@ export class InstagramGraphAPI {
         monthMap[month].values.push(value);
       }
       followerGrowthByMonth = Object.entries(monthMap).map(([month, { values }]) => {
-        const gain = Math.max(0, values[values.length - 1] - values[0]);
-        const loss = Math.max(0, values[0] - values[values.length - 1]);
+        // Accumulate day-over-day deltas for accurate gain/loss (not just net change)
+        let gain = 0,
+          loss = 0;
+        for (let i = 1; i < values.length; i++) {
+          const delta = values[i] - values[i - 1];
+          if (delta > 0) gain += delta;
+          else loss += Math.abs(delta);
+        }
         return { month, count: values[values.length - 1], gain, loss };
       });
     } else if (profile.followerCount > 0) {

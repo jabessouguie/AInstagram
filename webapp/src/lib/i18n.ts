@@ -411,6 +411,23 @@ const FR = {
   "calendar.story.chain": "Planifier 2 autres stories pour maintenir la visibilité ? (+2h et +4h)",
   "calendar.collision": "Ce créneau est déjà occupé",
 
+  // ── Settings / Brand identity ─────────────────────────────────────────────
+  "nav.settings": "Identité",
+  "settings.title": "Identité de marque",
+  "settings.subtitle": "Polices et couleurs utilisées dans le carousel creator et le media kit.",
+  "settings.fonts.title": "Polices",
+  "settings.fonts.title_label": "Titre",
+  "settings.fonts.subtitle_label": "Sous-titre",
+  "settings.fonts.body_label": "Corps",
+  "settings.colors.title": "Couleurs",
+  "settings.colors.primary": "Principale",
+  "settings.colors.secondary": "Secondaire",
+  "settings.colors.accent": "Accent",
+  "settings.colors.neutral": "Neutre",
+  "settings.save": "Enregistrer",
+  "settings.reset": "Réinitialiser",
+  "settings.saved": "Identité enregistrée",
+
   // ── Connect (Instagram Graph API) ────────────────────────────────────────
   "nav.connect": "Connexion API",
   "connect.title": "Connecter Instagram",
@@ -939,6 +956,23 @@ const EN: Record<keyof typeof FR, string> = {
   "calendar.panel.published": "Mark as published",
   "calendar.story.chain": "Schedule 2 more stories to maintain visibility? (+2h and +4h)",
   "calendar.collision": "This slot is already taken",
+
+  // ── Settings / Brand identity ─────────────────────────────────────────────
+  "nav.settings": "Brand",
+  "settings.title": "Brand Identity",
+  "settings.subtitle": "Fonts and colors used in the carousel creator and media kit.",
+  "settings.fonts.title": "Fonts",
+  "settings.fonts.title_label": "Title",
+  "settings.fonts.subtitle_label": "Subtitle",
+  "settings.fonts.body_label": "Body",
+  "settings.colors.title": "Colors",
+  "settings.colors.primary": "Primary",
+  "settings.colors.secondary": "Secondary",
+  "settings.colors.accent": "Accent",
+  "settings.colors.neutral": "Neutral",
+  "settings.save": "Save",
+  "settings.reset": "Reset",
+  "settings.saved": "Brand identity saved",
 
   // ── Connect (Instagram Graph API) ────────────────────────────────────────
   "nav.connect": "API Connect",

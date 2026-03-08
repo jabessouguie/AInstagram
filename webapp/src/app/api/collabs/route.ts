@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { generateText, isAIConfigured, stripJsonFences } from "@/lib/ai-provider";
+import { generateText, isAIConfigured, stripJsonFences, GEMINI_PRO } from "@/lib/ai-provider";
 import type { InstagramProfile } from "@/types/instagram";
 
 export const dynamic = "force-dynamic";
@@ -14,6 +14,7 @@ export interface CollabMatch {
   instagramHandle?: string;
   websiteHint?: string;
   potentialRevenue?: string;
+  contactEmail?: string; // known or probable contact email
 }
 
 export interface CollabFinderRequest {
@@ -92,12 +93,13 @@ Réponds UNIQUEMENT avec ce JSON (sans markdown) :
       "reason": "Pourquoi c'est pertinent pour CE créateur avec CES abonnés dans CETTE niche (2 phrases)",
       "instagramHandle": "@handle Instagram si connu",
       "websiteHint": "nom de domaine probable ou terme de recherche",
-      "potentialRevenue": "fourchette réaliste selon le tier (ex: échange produit, 50-150€, 300-800€)"
+      "potentialRevenue": "fourchette réaliste selon le tier (ex: échange produit, 50-150€, 300-800€)",
+      "contactEmail": "email de contact si connu ou pattern probable (ex: contact@brand.com, partenariats@brand.fr)"
     }
   ]
 }`;
 
-    const raw = await generateText(prompt);
+    const raw = await generateText(prompt, { model: GEMINI_PRO });
     const rawClean = stripJsonFences(raw);
     const parsed = JSON.parse(rawClean);
 

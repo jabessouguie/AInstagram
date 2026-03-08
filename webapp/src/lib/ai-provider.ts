@@ -82,9 +82,24 @@ export async function generateText(
       const key = process.env.GEMINI_API_KEY;
       if (!key) throw new Error("GEMINI_API_KEY is not configured");
       const genAI = new GoogleGenerativeAI(key);
-      const m = genAI.getGenerativeModel({ model });
-      const result = await m.generateContent(prompt);
-      return result.response.text().trim();
+      try {
+        const m = genAI.getGenerativeModel({ model });
+        const result = await m.generateContent(prompt);
+        return result.response.text().trim();
+      } catch (e) {
+        const msg = String(e);
+        // Preview model names may be rejected (404) — fall back to stable Flash
+        if (msg.includes("404") || msg.includes("not found") || msg.includes("preview")) {
+          console.error(
+            `[ai-provider] model "${model}" rejected, falling back to gemini-2.5-flash:`,
+            msg
+          );
+          const fallback = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+          const result = await fallback.generateContent(prompt);
+          return result.response.text().trim();
+        }
+        throw e;
+      }
     }
 
     case "anthropic": {
@@ -162,9 +177,26 @@ export async function generateTextStream(
     if (!key) throw new Error("GEMINI_API_KEY is not configured");
     const model = options.model ?? getDefaultModel("gemini");
     const genAI = new GoogleGenerativeAI(key);
-    const m = genAI.getGenerativeModel({ model });
-    const stream = await m.generateContentStream(prompt);
 
+    const getStream = async () => {
+      try {
+        const m = genAI.getGenerativeModel({ model });
+        return await m.generateContentStream(prompt);
+      } catch (e) {
+        const msg = String(e);
+        if (msg.includes("404") || msg.includes("not found") || msg.includes("preview")) {
+          console.error(
+            `[ai-provider] stream model "${model}" rejected, falling back to gemini-2.5-flash:`,
+            msg
+          );
+          const fallback = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+          return await fallback.generateContentStream(prompt);
+        }
+        throw e;
+      }
+    };
+
+    const stream = await getStream();
     return new ReadableStream<Uint8Array>({
       async start(controller) {
         for await (const chunk of stream.stream) {

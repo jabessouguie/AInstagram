@@ -6,6 +6,7 @@ import type {
   SkipRateAnalysisResponse,
   SkipRateInsights,
 } from "@/types/instagram";
+import type { ReelsCaptionContext } from "@/lib/content-prompt-context-store";
 
 export const dynamic = "force-dynamic";
 
@@ -96,15 +97,25 @@ Réponds en JSON strict :
   "patterns": ["pattern1", "pattern2", "pattern3"],
   "topSkippedCaptions": ["caption1", "caption2", "caption3"],
   "recommendations": ["reco1", "reco2", "reco3", "reco4"],
-  "medianWatchTime": ${medianWatchTime}
+  "medianWatchTime": ${medianWatchTime},
+  "topThemes": ["thème performant 1", "thème performant 2", "thème performant 3"],
+  "bestAngles": ["angle accrocheur 1", "angle accrocheur 2"],
+  "skipPatterns": ["à éviter 1", "à éviter 2", "à éviter 3"],
+  "promptFragment": "Phrase courte (1-2 lignes) à injecter dans les prompts de génération de captions pour tenir compte de ces insights. Ex: Priorise les hooks visuels percutants dans les 2 premières secondes. Évite les captions trop longues."
 }
 
 - patterns : 3-5 raisons concrètes identifiées (ex: "Pas de hook visuel dans les 2 premières secondes", "Captions trop longues avant l'action")
 - topSkippedCaptions : les 3 captions des reels les plus à risque (résumées à 60 caractères max)
-- recommendations : 4 actions concrètes et actionnables pour améliorer la rétention`;
+- recommendations : 4 actions concrètes et actionnables pour améliorer la rétention
+- topThemes : thèmes/sujets qui performent le mieux (déduits des captions des reels à faible skip)
+- bestAngles : angles et types de hooks qui fonctionnent (ex: "question rhétorique", "chiffre choc")
+- skipPatterns : patterns récurrents des reels skippés — à proscrire
+- promptFragment : phrase concise à injecter dans les futurs prompts de génération de captions reels`;
 
     const raw = await generateText(prompt);
-    const parsed = JSON.parse(stripJsonFences(raw)) as Partial<SkipRateInsights>;
+    const parsed = JSON.parse(stripJsonFences(raw)) as Partial<
+      SkipRateInsights & ReelsCaptionContext & { promptFragment: string }
+    >;
 
     const insights: SkipRateInsights = {
       patterns: parsed.patterns ?? [],
@@ -113,7 +124,14 @@ Réponds en JSON strict :
       medianWatchTime: medianWatchTime,
     };
 
-    return NextResponse.json({ success: true, insights });
+    const captionContext = {
+      topThemes: (parsed as { topThemes?: string[] }).topThemes ?? [],
+      bestAngles: (parsed as { bestAngles?: string[] }).bestAngles ?? [],
+      skipPatterns: (parsed as { skipPatterns?: string[] }).skipPatterns ?? [],
+      promptFragment: (parsed as { promptFragment?: string }).promptFragment ?? "",
+    };
+
+    return NextResponse.json({ success: true, insights, captionContext });
   } catch (error) {
     console.error("Error in /api/reels/analyze:", error);
     return NextResponse.json(

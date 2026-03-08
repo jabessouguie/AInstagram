@@ -2,19 +2,30 @@
 
 import { useState } from "react";
 import useSWR from "swr";
-import { UserX, Trash2, Copy, Check, ExternalLink, Users } from "lucide-react";
+import {
+  UserX,
+  Trash2,
+  Copy,
+  Check,
+  ExternalLink,
+  Users,
+  MessageCircle,
+  Loader2,
+  Sparkles,
+} from "lucide-react";
 import { Header } from "@/components/layout/Header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
 import { useInstagramData, getIgHeaders } from "@/hooks/useInstagramData";
 import { useT } from "@/lib/i18n";
-import type { InteractionAnalysis, UnfollowCandidate } from "@/types/instagram";
+import type { InteractionAnalysis, UnfollowCandidate, DMSuggestion } from "@/types/instagram";
 
 const fetcher = (url: string) => fetch(url, { headers: getIgHeaders() }).then((r) => r.json());
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
+// ─── Copy button ──────────────────────────────────────────────────────────────
 
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
@@ -30,7 +41,9 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
-function CandidateRow({ candidate, tag }: { candidate: UnfollowCandidate; tag?: string }) {
+// ─── Candidate row (unfollow tab) ─────────────────────────────────────────────
+
+function CandidateRow({ candidate }: { candidate: UnfollowCandidate }) {
   const t = useT();
   return (
     <div className="flex items-center gap-3 border-b border-border/40 py-3 text-sm last:border-0">
@@ -50,11 +63,6 @@ function CandidateRow({ candidate, tag }: { candidate: UnfollowCandidate; tag?: 
           )}
         </p>
       </div>
-      {tag && (
-        <Badge variant="outline" className="shrink-0 text-[10px]">
-          {tag}
-        </Badge>
-      )}
       <CopyButton text={`@${candidate.username}`} />
       <a
         href={candidate.profileUrl}
@@ -64,6 +72,120 @@ function CandidateRow({ candidate, tag }: { candidate: UnfollowCandidate; tag?: 
       >
         <ExternalLink className="h-3.5 w-3.5" />
       </a>
+    </div>
+  );
+}
+
+// ─── DM card (dm-suggest tabs) ────────────────────────────────────────────────
+
+function DMCard({ suggestion }: { suggestion: DMSuggestion }) {
+  const [bio, setBio] = useState<string>(suggestion.bio ?? "");
+  const [message, setMessage] = useState<string | null>(null);
+  const [generating, setGenerating] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const generate = async () => {
+    setGenerating(true);
+    setMessage(null);
+    try {
+      const res = await fetch("/api/interactions/dm-suggest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: suggestion.username, bio: bio.trim() || null }),
+      });
+      const json: { success: boolean; message?: string } = await res.json();
+      if (json.success && json.message) setMessage(json.message);
+    } catch {
+      // network error — silent
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const copyMsg = () => {
+    if (!message) return;
+    navigator.clipboard.writeText(message);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="space-y-3 rounded-xl border border-border/60 bg-card/50 p-4">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium">@{suggestion.username}</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">{suggestion.reason}</p>
+        </div>
+        <a
+          href={suggestion.profileUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="shrink-0 text-muted-foreground hover:text-foreground"
+        >
+          <ExternalLink className="h-3.5 w-3.5" />
+        </a>
+      </div>
+
+      <textarea
+        value={bio}
+        onChange={(e) => setBio(e.target.value)}
+        placeholder="Bio Instagram (optionnel — coller la bio pour personnaliser le message)"
+        rows={2}
+        className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+      />
+
+      <div className="flex items-center gap-2">
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={generate}
+          disabled={generating}
+          className="gap-1.5 text-xs"
+        >
+          {generating ? (
+            <Loader2 className="h-3 w-3 animate-spin" />
+          ) : (
+            <Sparkles className="h-3 w-3" />
+          )}
+          Générer DM
+        </Button>
+        {message && (
+          <button
+            onClick={copyMsg}
+            className="rounded p-1 text-muted-foreground hover:text-foreground"
+          >
+            {copied ? (
+              <Check className="h-3.5 w-3.5 text-emerald-500" />
+            ) : (
+              <Copy className="h-3.5 w-3.5" />
+            )}
+          </button>
+        )}
+      </div>
+
+      {message && (
+        <p className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-xs leading-relaxed text-foreground">
+          {message}
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ─── Loading skeleton ─────────────────────────────────────────────────────────
+
+function LoadingSkeleton() {
+  return (
+    <div className="space-y-3">
+      {Array.from({ length: 6 }).map((_, i) => (
+        <div key={i} className="flex items-center gap-3">
+          <div className="flex-1 space-y-1">
+            <Skeleton className="h-4 w-32" />
+            <Skeleton className="h-3 w-48" />
+          </div>
+          <Skeleton className="h-7 w-16 rounded-md" />
+        </div>
+      ))}
     </div>
   );
 }
@@ -102,53 +224,61 @@ export default function InteractionsPage() {
               {analysis.neverInteracted.length} {t("interactions.badge.neverInteracted")}
             </Badge>
             <Badge variant="secondary" className="gap-1.5 px-3 py-1.5 text-sm">
+              <MessageCircle className="h-3.5 w-3.5 text-blue-400" />
+              {(analysis.dmSuggestionsNoFollowBack?.length ?? 0) +
+                (analysis.dmSuggestionsMutual?.length ?? 0)}{" "}
+              DM suggérés
+            </Badge>
+            <Badge variant="secondary" className="gap-1.5 px-3 py-1.5 text-sm">
               <Trash2 className="h-3.5 w-3.5 text-red-400" />
               {analysis.unfollowCandidates.length} {t("interactions.badge.toUnfollow")}
             </Badge>
           </div>
         )}
 
-        <Tabs defaultValue="inactive" className="space-y-6">
-          <TabsList className="grid w-full max-w-xs grid-cols-2">
-            <TabsTrigger value="inactive">{t("interactions.tabs.inactive")}</TabsTrigger>
-            <TabsTrigger value="unfollow">{t("interactions.tabs.unfollow")}</TabsTrigger>
+        <Tabs defaultValue="dm-nofollowback" className="space-y-6">
+          <TabsList className="grid w-full max-w-lg grid-cols-3">
+            <TabsTrigger value="dm-nofollowback" className="text-xs">
+              DM · Non-retour
+            </TabsTrigger>
+            <TabsTrigger value="dm-mutual" className="text-xs">
+              DM · Mutuels
+            </TabsTrigger>
+            <TabsTrigger value="unfollow" className="text-xs">
+              À unfollow
+            </TabsTrigger>
           </TabsList>
 
-          {/* ── Inactive Tab ── */}
-          <TabsContent value="inactive">
+          {/* ── Tab 1: DM · No follow-back ─────────────────────────────────── */}
+          <TabsContent value="dm-nofollowback">
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base font-semibold">
-                  <UserX className="h-4 w-4 text-amber-400" />
-                  {t("interactions.inactive.title")}
+                  <MessageCircle className="h-4 w-4 text-blue-400" />
+                  DM — Ils ne vous suivent pas encore
                 </CardTitle>
-                <CardDescription>{t("interactions.inactive.description")}</CardDescription>
+                <CardDescription>
+                  Vous les suivez mais ils ne vous suivent pas en retour. Un message authentique
+                  pourrait créer la connexion.
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 {isLoading ? (
-                  <div className="space-y-3">
-                    {Array.from({ length: 8 }).map((_, i) => (
-                      <div key={i} className="flex items-center gap-3">
-                        <div className="flex-1 space-y-1">
-                          <Skeleton className="h-4 w-32" />
-                          <Skeleton className="h-3 w-48" />
-                        </div>
-                        <Skeleton className="h-7 w-16 rounded-md" />
-                      </div>
-                    ))}
-                  </div>
+                  <LoadingSkeleton />
                 ) : analysis?.dataSource === "api" ? (
                   <p className="rounded-lg bg-amber-500/10 px-4 py-3 text-xs text-amber-300">
-                    {t("interactions.api.inactive_unavailable")}
+                    Cette fonctionnalité nécessite l'exportation de données Instagram. Téléchargez
+                    votre export depuis Instagram → Paramètres → Vos activités → Télécharger vos
+                    informations.
                   </p>
-                ) : analysis?.neverInteracted.length === 0 ? (
+                ) : !analysis?.dmSuggestionsNoFollowBack?.length ? (
                   <p className="py-6 text-center text-sm text-muted-foreground">
-                    {t("interactions.inactive.empty")}
+                    Aucune suggestion pour le moment.
                   </p>
                 ) : (
-                  <div>
-                    {analysis?.neverInteracted.map((c) => (
-                      <CandidateRow key={c.username} candidate={c} />
+                  <div className="space-y-3">
+                    {analysis.dmSuggestionsNoFollowBack.map((s) => (
+                      <DMCard key={s.username} suggestion={s} />
                     ))}
                   </div>
                 )}
@@ -156,7 +286,42 @@ export default function InteractionsPage() {
             </Card>
           </TabsContent>
 
-          {/* ── Unfollow Tab ── */}
+          {/* ── Tab 2: DM · Mutuals ────────────────────────────────────────── */}
+          <TabsContent value="dm-mutual">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base font-semibold">
+                  <MessageCircle className="h-4 w-4 text-emerald-400" />
+                  DM — Abonnés mutuels non contactés
+                </CardTitle>
+                <CardDescription>
+                  Vous vous suivez mutuellement mais n'avez jamais échangé. Renforcer ces liens
+                  booste l'engagement.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {isLoading ? (
+                  <LoadingSkeleton />
+                ) : analysis?.dataSource === "api" ? (
+                  <p className="rounded-lg bg-amber-500/10 px-4 py-3 text-xs text-amber-300">
+                    {t("interactions.api.inactive_unavailable")}
+                  </p>
+                ) : !analysis?.dmSuggestionsMutual?.length ? (
+                  <p className="py-6 text-center text-sm text-muted-foreground">
+                    Aucune suggestion pour le moment.
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    {analysis.dmSuggestionsMutual.map((s) => (
+                      <DMCard key={s.username} suggestion={s} />
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* ── Tab 3: Unfollow ────────────────────────────────────────────── */}
           <TabsContent value="unfollow">
             <Card>
               <CardHeader>
@@ -187,11 +352,7 @@ export default function InteractionsPage() {
                 ) : (
                   <div>
                     {analysis?.unfollowCandidates.map((c) => (
-                      <CandidateRow
-                        key={c.username}
-                        candidate={c}
-                        tag={t("interactions.candidate.unfollowTag")}
-                      />
+                      <CandidateRow key={c.username} candidate={c} />
                     ))}
                   </div>
                 )}

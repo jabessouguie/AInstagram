@@ -25,8 +25,10 @@ import { useInstagramData } from "@/hooks/useInstagramData";
 import {
   generateMediaKitHTML,
   defaultMediaKitConfig,
+  MEDIAKIT_THEMES,
   type MediaKitConfig,
 } from "@/lib/mediakit-generator";
+import { loadBrandSettings } from "@/lib/brand-settings-store";
 import { AIFeedbackBar } from "@/components/ui/ai-feedback-bar";
 import { useAnimatedStatus } from "@/hooks/useAnimatedStatus";
 import { useT } from "@/lib/i18n";
@@ -85,16 +87,9 @@ function ColorPickerField({
   );
 }
 
-// ─── Color presets ────────────────────────────────────────────────────────────
+// ─── Theme list from generator (10 themes) ────────────────────────────────────
 
-const COLOR_PRESETS = [
-  { name: "Violet & Rose", primary: "#7c3aed", secondary: "#db2777", accent: "#f59e0b" },
-  { name: "Instagram", primary: "#833ab4", secondary: "#fd1d1d", accent: "#fcb045" },
-  { name: "Océan", primary: "#0ea5e9", secondary: "#06b6d4", accent: "#10b981" },
-  { name: "Emeraude", primary: "#059669", secondary: "#10b981", accent: "#f59e0b" },
-  { name: "Feu", primary: "#f97316", secondary: "#dc2626", accent: "#fbbf24" },
-  { name: "Minuit", primary: "#6366f1", secondary: "#8b5cf6", accent: "#a78bfa" },
-];
+const THEME_LIST = Object.entries(MEDIAKIT_THEMES).map(([id, t]) => ({ id, ...t }));
 
 // ─── Input component ──────────────────────────────────────────────────────────
 
@@ -151,7 +146,19 @@ export default function MediaKitPage() {
   const photoInputRef = useRef<HTMLInputElement>(null);
   const bannerInputRef = useRef<HTMLInputElement>(null);
 
-  // Initialise config from real data when loaded
+  // Initialise config from brand settings + real profile data
+  useEffect(() => {
+    const brand = loadBrandSettings();
+    setConfig((c) => ({
+      ...c,
+      primaryColor: brand.primaryColor,
+      secondaryColor: brand.secondaryColor,
+      accentColor: brand.accentColor,
+      fontTitle: brand.fontTitle,
+      fontBody: brand.fontBody,
+    }));
+  }, []);
+
   useEffect(() => {
     if (data?.profile) {
       setConfig((c) => ({
@@ -419,7 +426,7 @@ export default function MediaKitPage() {
               </CardContent>
             </Card>
 
-            {/* Color presets */}
+            {/* Theme picker */}
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-sm font-semibold">
@@ -427,27 +434,49 @@ export default function MediaKitPage() {
                   {t("mediakit.colors.title")}
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="grid grid-cols-3 gap-2">
-                  {COLOR_PRESETS.map((p) => (
-                    <button
-                      key={p.name}
-                      title={p.name}
-                      onClick={() =>
-                        setConfig((c) => ({
-                          ...c,
-                          primaryColor: p.primary,
-                          secondaryColor: p.secondary,
-                          accentColor: p.accent,
-                        }))
-                      }
-                      className={`h-10 rounded-lg border-2 transition-all ${config.primaryColor === p.primary ? "scale-105 border-foreground" : "border-transparent"}`}
-                      style={{
-                        background: `linear-gradient(135deg, ${p.primary}, ${p.secondary})`,
-                      }}
-                    />
-                  ))}
+              <CardContent className="space-y-4">
+                {/* 10-theme swatches — 5 × 2 grid */}
+                <div className="grid grid-cols-5 gap-2">
+                  {THEME_LIST.map((th) => {
+                    const isActive = config.theme === th.id;
+                    return (
+                      <button
+                        key={th.id}
+                        title={th.name}
+                        onClick={() =>
+                          setConfig((c) => ({
+                            ...c,
+                            theme: th.id,
+                            primaryColor: th.primary,
+                            secondaryColor: th.secondary,
+                            accentColor: th.accent,
+                          }))
+                        }
+                        className={`relative h-10 rounded-xl border-2 transition-all ${
+                          isActive
+                            ? "scale-110 border-white shadow-md"
+                            : "border-transparent opacity-80 hover:opacity-100"
+                        }`}
+                        style={{
+                          background: `linear-gradient(135deg, ${th.primary}, ${th.secondary})`,
+                        }}
+                      >
+                        {isActive && (
+                          <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white drop-shadow">
+                            ✓
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
+                {/* Theme name display */}
+                {config.theme && (
+                  <p className="text-center text-[10px] uppercase tracking-widest text-muted-foreground">
+                    {MEDIAKIT_THEMES[config.theme]?.name ?? config.theme}
+                  </p>
+                )}
+                {/* Custom color overrides */}
                 <div className="grid grid-cols-3 gap-2">
                   <ColorPickerField
                     label={t("mediakit.colors.primary")}

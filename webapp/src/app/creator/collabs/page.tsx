@@ -4,7 +4,7 @@ import { useState, useCallback } from "react";
 import {
   Search,
   Mail,
-  FileText,
+  MessageCircle,
   Loader2,
   ExternalLink,
   ChevronDown,
@@ -12,6 +12,8 @@ import {
   Sparkles,
   Plus,
   X,
+  Copy,
+  Check,
 } from "lucide-react";
 import { Header } from "@/components/layout/Header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -32,6 +34,261 @@ const TYPE_COLORS: Record<string, string> = {
   media: "text-pink-400 border-pink-400/30 bg-pink-400/10",
 };
 
+// ─── Copy button ───────────────────────────────────────────────────────────────
+
+function CopyButton({ text, label = "Copier" }: { text: string; label?: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = () => {
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+  return (
+    <Button size="sm" variant="outline" className="text-xs" onClick={copy}>
+      {copied ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
+      {copied ? "Copié !" : label}
+    </Button>
+  );
+}
+
+// ─── DM Instagram panel ────────────────────────────────────────────────────────
+
+function DMPanel({
+  collab,
+  profile,
+}: {
+  collab: CollabMatch;
+  profile: { username?: string; followerCount?: number };
+}) {
+  const [dmText, setDmText] = useState<string | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [showPanel, setShowPanel] = useState(false);
+
+  const genStatuses = ["Analyse du profil...", "Rédaction du message...", "Ajustement du ton..."];
+  const genStatus = useAnimatedStatus(isGenerating, genStatuses);
+
+  const generate = useCallback(
+    async (feedback?: string) => {
+      setIsGenerating(true);
+      setShowPanel(true);
+      try {
+        const res = await fetch("/api/collabs/dm", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ collab, profile, feedback }),
+        });
+        const json = await res.json();
+        if (json.success && json.data) setDmText(json.data.message as string);
+      } finally {
+        setIsGenerating(false);
+      }
+    },
+    [collab, profile]
+  );
+
+  const igUrl = collab.instagramHandle
+    ? `https://instagram.com/${collab.instagramHandle.replace("@", "")}`
+    : null;
+
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center gap-2">
+        {igUrl && (
+          <a
+            href={igUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-xs text-violet-400 hover:underline"
+          >
+            <ExternalLink className="h-3 w-3" />
+            {collab.instagramHandle}
+          </a>
+        )}
+        <Button
+          size="sm"
+          variant="outline"
+          className="text-xs"
+          onClick={() => generate()}
+          disabled={isGenerating}
+        >
+          {isGenerating ? (
+            <Loader2 className="h-3 w-3 animate-spin" />
+          ) : (
+            <MessageCircle className="h-3 w-3 text-violet-400" />
+          )}
+          {isGenerating ? genStatus : dmText ? "Régénérer le DM" : "Générer un DM Instagram"}
+        </Button>
+        {dmText && (
+          <button
+            onClick={() => setShowPanel((p) => !p)}
+            className="text-muted-foreground transition-colors hover:text-foreground"
+          >
+            {showPanel ? (
+              <ChevronUp className="h-3.5 w-3.5" />
+            ) : (
+              <ChevronDown className="h-3.5 w-3.5" />
+            )}
+          </button>
+        )}
+      </div>
+
+      {showPanel && dmText && (
+        <div className="space-y-2.5 rounded-lg border border-violet-500/20 bg-violet-500/5 p-3">
+          <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-violet-400">
+            <MessageCircle className="h-3 w-3" />
+            Message Instagram Direct
+          </div>
+          <p className="whitespace-pre-wrap text-sm leading-relaxed">{dmText}</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <CopyButton text={dmText} label="Copier le DM" />
+            {igUrl && (
+              <a href={igUrl} target="_blank" rel="noopener noreferrer">
+                <Button size="sm" variant="ghost" className="text-xs text-violet-400">
+                  <ExternalLink className="h-3 w-3" />
+                  Ouvrir le profil
+                </Button>
+              </a>
+            )}
+          </div>
+          <AIFeedbackBar
+            onRegenerate={generate}
+            isGenerating={isGenerating}
+            placeholder="Trop formel ? Plus court ? Précise ton idée..."
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Email panel ───────────────────────────────────────────────────────────────
+
+function EmailPanel({
+  collab,
+  profile,
+}: {
+  collab: CollabMatch;
+  profile: { username?: string; followerCount?: number };
+}) {
+  const t = useT();
+  const [emailData, setEmailData] = useState<{ subject: string; body: string } | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [showPanel, setShowPanel] = useState(false);
+
+  const genStatuses = [
+    t("collabs.email.status.analyzeProfile"),
+    t("collabs.email.status.draftSubject"),
+    t("collabs.email.status.customizeContent"),
+    t("collabs.email.status.addCTA"),
+  ];
+  const genStatus = useAnimatedStatus(isGenerating, genStatuses);
+
+  const generate = useCallback(
+    async (feedback?: string) => {
+      setIsGenerating(true);
+      setShowPanel(true);
+      try {
+        const res = await fetch("/api/collabs/email", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ collab, profile, feedback }),
+        });
+        const json = await res.json();
+        if (json.success && json.data) setEmailData(json.data as { subject: string; body: string });
+      } finally {
+        setIsGenerating(false);
+      }
+    },
+    [collab, profile]
+  );
+
+  const fullEmailText = emailData ? `Objet : ${emailData.subject}\n\n${emailData.body}` : "";
+
+  const mailtoUrl =
+    collab.contactEmail && emailData
+      ? `mailto:${collab.contactEmail}?subject=${encodeURIComponent(emailData.subject)}&body=${encodeURIComponent(emailData.body)}`
+      : collab.contactEmail
+        ? `mailto:${collab.contactEmail}`
+        : null;
+
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center gap-2">
+        {collab.contactEmail && (
+          <span className="font-mono text-xs text-muted-foreground">{collab.contactEmail}</span>
+        )}
+        <Button
+          size="sm"
+          variant="outline"
+          className="text-xs"
+          onClick={() => generate()}
+          disabled={isGenerating}
+        >
+          {isGenerating ? (
+            <Loader2 className="h-3 w-3 animate-spin" />
+          ) : (
+            <Mail className="h-3 w-3 text-sky-400" />
+          )}
+          {isGenerating
+            ? genStatus
+            : emailData
+              ? t("collabs.card.regenerateEmail")
+              : t("collabs.card.generateEmail")}
+        </Button>
+        {emailData && (
+          <button
+            onClick={() => setShowPanel((p) => !p)}
+            className="text-muted-foreground transition-colors hover:text-foreground"
+          >
+            {showPanel ? (
+              <ChevronUp className="h-3.5 w-3.5" />
+            ) : (
+              <ChevronDown className="h-3.5 w-3.5" />
+            )}
+          </button>
+        )}
+      </div>
+
+      {showPanel && emailData && (
+        <div className="space-y-2.5 rounded-lg border border-sky-500/20 bg-sky-500/5 p-3">
+          <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-sky-400">
+            <Mail className="h-3 w-3" />
+            Email de collaboration
+          </div>
+          <div>
+            <div className="mb-1 text-[10px] uppercase tracking-wider text-muted-foreground">
+              {t("collabs.email.subject")}
+            </div>
+            <p className="text-sm font-semibold">{emailData.subject}</p>
+          </div>
+          <div>
+            <div className="mb-1 text-[10px] uppercase tracking-wider text-muted-foreground">
+              {t("collabs.email.body")}
+            </div>
+            <p className="whitespace-pre-wrap text-sm leading-relaxed">{emailData.body}</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <CopyButton text={fullEmailText} label="Copier l'email" />
+            {mailtoUrl && (
+              <a href={mailtoUrl}>
+                <Button size="sm" variant="ghost" className="text-xs text-sky-400">
+                  <ExternalLink className="h-3 w-3" />
+                  Ouvrir dans Mail
+                </Button>
+              </a>
+            )}
+          </div>
+          <AIFeedbackBar
+            onRegenerate={generate}
+            isGenerating={isGenerating}
+            placeholder={t("collabs.email.feedbackPlaceholder")}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Collab Card ──────────────────────────────────────────────────────────────
 
 function CollabCard({
@@ -42,19 +299,6 @@ function CollabCard({
   profile: { username?: string; followerCount?: number; bio?: string };
 }) {
   const t = useT();
-  const [expanded, setExpanded] = useState(false);
-  const [emailData, setEmailData] = useState<{ subject: string; body: string } | null>(null);
-  const [isGeneratingEmail, setIsGeneratingEmail] = useState(false);
-  const [copiedEmail, setCopiedEmail] = useState(false);
-
-  const emailGenStatuses = [
-    t("collabs.email.status.analyzeProfile"),
-    t("collabs.email.status.draftSubject"),
-    t("collabs.email.status.customizeContent"),
-    t("collabs.email.status.addCTA"),
-  ];
-
-  const emailStatus = useAnimatedStatus(isGeneratingEmail, emailGenStatuses);
 
   const typeLabels: Record<string, string> = {
     brand: t("collabs.type.brand"),
@@ -63,36 +307,11 @@ function CollabCard({
     media: t("collabs.type.media"),
   };
 
-  const generateEmail = useCallback(
-    async (feedback?: string) => {
-      setIsGeneratingEmail(true);
-      setExpanded(true);
-      try {
-        const res = await fetch("/api/collabs/email", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ collab, profile, feedback }),
-        });
-        const json = await res.json();
-        if (json.success && json.data) setEmailData(json.data);
-      } finally {
-        setIsGeneratingEmail(false);
-      }
-    },
-    [collab, profile]
-  );
-
-  const copyEmail = () => {
-    if (!emailData) return;
-    navigator.clipboard.writeText(
-      `${t("collabs.email.subject")}: ${emailData.subject}\n\n${emailData.body}`
-    );
-    setCopiedEmail(true);
-    setTimeout(() => setCopiedEmail(false), 2000);
-  };
-
   const typeColor = TYPE_COLORS[collab.type] ?? "";
   const typeLabel = typeLabels[collab.type] ?? collab.type;
+
+  const hasDM = !!collab.instagramHandle;
+  const hasEmail = !!collab.contactEmail;
 
   return (
     <Card className="overflow-hidden">
@@ -106,6 +325,19 @@ function CollabCard({
               >
                 {typeLabel}
               </span>
+              {/* Channel badges */}
+              {hasDM && (
+                <span className="inline-flex items-center gap-1 rounded border border-violet-400/30 bg-violet-400/10 px-1.5 py-0.5 text-[10px] text-violet-400">
+                  <MessageCircle className="h-2.5 w-2.5" />
+                  DM
+                </span>
+              )}
+              {hasEmail && (
+                <span className="inline-flex items-center gap-1 rounded border border-sky-400/30 bg-sky-400/10 px-1.5 py-0.5 text-[10px] text-sky-400">
+                  <Mail className="h-2.5 w-2.5" />
+                  Email
+                </span>
+              )}
             </CardTitle>
             <CardDescription className="mt-1 text-xs">
               📍 {collab.location} · {collab.niche}
@@ -121,74 +353,38 @@ function CollabCard({
           )}
         </div>
       </CardHeader>
-      <CardContent className="space-y-3 pt-0">
+
+      <CardContent className="space-y-4 pt-0">
         <p className="text-sm text-muted-foreground">{collab.reason}</p>
 
-        {collab.instagramHandle && (
-          <a
-            href={`https://instagram.com/${collab.instagramHandle.replace("@", "")}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-xs text-violet-400 hover:underline"
-          >
-            <ExternalLink className="h-3 w-3" />
-            {collab.instagramHandle}
-          </a>
+        {/* ── DM channel ── */}
+        {hasDM && <DMPanel collab={collab} profile={profile} />}
+
+        {/* Divider when both channels are available */}
+        {hasDM && hasEmail && (
+          <div className="flex items-center gap-2 text-[10px] uppercase tracking-widest text-muted-foreground">
+            <span className="h-px flex-1 bg-border" />
+            ou
+            <span className="h-px flex-1 bg-border" />
+          </div>
         )}
 
-        <div className="flex flex-wrap gap-2">
-          <Button
-            size="sm"
-            variant="outline"
-            className="text-xs"
-            onClick={() => generateEmail()}
-            disabled={isGeneratingEmail}
-          >
-            {isGeneratingEmail ? (
-              <Loader2 className="h-3 w-3 animate-spin" />
-            ) : (
-              <Mail className="h-3 w-3" />
-            )}
-            {isGeneratingEmail
-              ? emailStatus
-              : emailData
-                ? t("collabs.card.regenerateEmail")
-                : t("collabs.card.generateEmail")}
-          </Button>
+        {/* ── Email channel ── */}
+        {hasEmail && <EmailPanel collab={collab} profile={profile} />}
 
-          {emailData && (
-            <Button
-              size="sm"
-              variant="ghost"
-              className="text-xs"
-              onClick={() => setExpanded((e) => !e)}
+        {/* Fallback: no contact info */}
+        {!hasDM && !hasEmail && collab.websiteHint && (
+          <p className="text-xs text-muted-foreground">
+            🔍 Recherche :{" "}
+            <a
+              href={`https://google.com/search?q=${encodeURIComponent(collab.websiteHint + " contact partenariat")}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary hover:underline"
             >
-              {expanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-              {expanded ? t("collabs.card.hide") : t("collabs.card.show")} email
-            </Button>
-          )}
-        </div>
-
-        {expanded && emailData && (
-          <div className="space-y-2 rounded-lg border border-border bg-muted/30 p-3 text-sm">
-            <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-              {t("collabs.email.subject")}
-            </div>
-            <p className="font-semibold">{emailData.subject}</p>
-            <div className="mt-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-              {t("collabs.email.body")}
-            </div>
-            <p className="whitespace-pre-wrap text-sm leading-relaxed">{emailData.body}</p>
-            <Button size="sm" variant="outline" className="w-full text-xs" onClick={copyEmail}>
-              <FileText className="h-3 w-3" />
-              {copiedEmail ? t("collabs.email.copied") : t("collabs.email.copyButton")}
-            </Button>
-            <AIFeedbackBar
-              onRegenerate={generateEmail}
-              isGenerating={isGeneratingEmail}
-              placeholder={t("collabs.email.feedbackPlaceholder")}
-            />
-          </div>
+              {collab.websiteHint}
+            </a>
+          </p>
         )}
       </CardContent>
     </Card>
@@ -262,10 +458,10 @@ export default function CollabsPage() {
       });
       const json = await res.json();
       if (json.success && json.data) {
-        setCollabs(json.data.collabs ?? []);
-        setSummary(json.data.summary ?? "");
+        setCollabs((json.data.collabs as CollabMatch[]) ?? []);
+        setSummary((json.data.summary as string) ?? "");
       } else {
-        setError(json.error ?? t("collabs.search.error"));
+        setError((json.error as string) ?? t("collabs.search.error"));
       }
     } catch {
       setError(t("collabs.search.networkError"));

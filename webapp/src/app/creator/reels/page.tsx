@@ -1,13 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { Video, Loader2, AlertTriangle, TrendingDown, Zap, Lock } from "lucide-react";
+import { Video, Loader2, AlertTriangle, TrendingDown, Zap, Lock, CheckCircle2 } from "lucide-react";
 import { Header } from "@/components/layout/Header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useInstagramData } from "@/hooks/useInstagramData";
-import type { InstagramPost, SkipRateInsights } from "@/types/instagram";
+import type { InstagramPost, SkipRateInsights, SkipRateAnalysisResponse } from "@/types/instagram";
 import { useT } from "@/lib/i18n";
+import { saveReelsCaptionContext } from "@/lib/content-prompt-context-store";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -171,8 +172,12 @@ export default function ReelsPage() {
   const { data } = useInstagramData();
 
   const [insights, setInsights] = useState<SkipRateInsights | null>(null);
+  const [captionContext, setCaptionContext] = useState<
+    SkipRateAnalysisResponse["captionContext"] | null
+  >(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [contextApplied, setContextApplied] = useState(false);
 
   const isApiConnected = typeof window !== "undefined" && !!localStorage.getItem("ig_access_token");
 
@@ -185,7 +190,9 @@ export default function ReelsPage() {
       return aWt - bWt;
     });
 
-  const med = median(reels.filter((r) => r.avgWatchTime != null).map((r) => r.avgWatchTime!));
+  const reelsWithWatchTime = reels.filter((r) => r.avgWatchTime != null);
+  const med = median(reelsWithWatchTime.map((r) => r.avgWatchTime!));
+  const missingWatchTime = isApiConnected && reels.length > 0 && reelsWithWatchTime.length === 0;
 
   async function handleAnalyze() {
     if (!data || reels.length === 0) return;
@@ -197,10 +204,10 @@ export default function ReelsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ reels: reels.slice(0, 50), profile: data.profile }),
       });
-      const json: { success: boolean; insights?: SkipRateInsights; error?: string } =
-        await res.json();
+      const json: SkipRateAnalysisResponse = await res.json();
       if (json.success && json.insights) {
         setInsights(json.insights);
+        if (json.captionContext) setCaptionContext(json.captionContext);
       } else {
         setError(json.error ?? "Erreur");
       }
@@ -264,6 +271,21 @@ export default function ReelsPage() {
           </div>
         )}
 
+        {/* Permission needed for watch-time metrics */}
+        {missingWatchTime && (
+          <div className="flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-300">
+            <Lock className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>
+              La métrique <strong>Temps de visionnage moyen</strong> nécessite la permission{" "}
+              <code className="rounded bg-amber-500/20 px-1 font-mono text-xs">
+                instagram_manage_insights
+              </code>{" "}
+              sur votre token Instagram. Accordez cette permission dans le Meta Developer Portal
+              puis reconnectez votre compte.
+            </span>
+          </div>
+        )}
+
         {/* Error */}
         {error && (
           <p className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
@@ -273,6 +295,48 @@ export default function ReelsPage() {
 
         {/* AI Insights */}
         {insights && <InsightsPanel insights={insights} t={t} />}
+
+        {/* Apply context to caption generation prompt */}
+        {captionContext && (
+          <div className="flex items-start gap-3 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3">
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium text-foreground">
+                Mettre à jour le prompt de génération de captions
+              </p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Ces insights seront injectés automatiquement lors de vos prochaines générations de
+                captions Reels.
+              </p>
+              {captionContext.topThemes.length > 0 && (
+                <p className="mt-1.5 text-xs text-muted-foreground">
+                  <strong>Thèmes performants :</strong> {captionContext.topThemes.join(", ")}
+                </p>
+              )}
+            </div>
+            <Button
+              size="sm"
+              onClick={() => {
+                saveReelsCaptionContext(captionContext);
+                setContextApplied(true);
+                setTimeout(() => setContextApplied(false), 3000);
+              }}
+              className="shrink-0 gap-1.5"
+              variant={contextApplied ? "outline" : "default"}
+            >
+              {contextApplied ? (
+                <>
+                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+                  Appliqué
+                </>
+              ) : (
+                <>
+                  <Zap className="h-3.5 w-3.5" />
+                  Appliquer
+                </>
+              )}
+            </Button>
+          </div>
+        )}
 
         {/* Reels Table */}
         {reels.length > 0 ? (

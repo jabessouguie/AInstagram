@@ -1,126 +1,224 @@
 /**
  * Unit tests for the interaction analyser logic.
- * Tests the business rules for classifying accounts.
+ * Tests the business rules for classifying accounts by mocking fs and testing the actual module.
  */
-export {};
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+import { analyseInteractions, analyseInteractionsFromAPI } from "@/lib/interaction-analyser";
+import fs from "fs";
+import path from "path";
 
-interface Follower {
-  username: string;
-  followedAt: Date;
-}
+jest.mock("fs");
 
-// ─── Business logic ───────────────────────────────────────────────────────────
+const mockFs = fs as jest.Mocked<typeof fs>;
 
-function classifyInteractions(
-  following: Follower[],
-  followerSet: Set<string>,
-  interactors: Set<string>,
-  sentDMs: Map<string, Date>,
-  nowMs: number = Date.now()
-) {
-  const ONE_MONTH = 30 * 24 * 60 * 60 * 1000;
-  const neverInteracted: string[] = [];
-  const unfollowCandidates: string[] = [];
-
-  for (const { username } of following) {
-    const theyFollowBack = followerSet.has(username);
-    const hasInteracted = interactors.has(username);
-
-    if (theyFollowBack && !hasInteracted) {
-      neverInteracted.push(username);
-    }
-
-    if (!theyFollowBack) {
-      const dmDate = sentDMs.get(username);
-      if (dmDate && nowMs - dmDate.getTime() > ONE_MONTH) {
-        unfollowCandidates.push(username);
-      }
-    }
-  }
-
-  return { neverInteracted, unfollowCandidates };
-}
-
-// ─── Fixtures ─────────────────────────────────────────────────────────────────
-
-const NOW = new Date("2026-02-24T18:00:00Z").getTime();
-const LONG_AGO = new Date("2025-12-01T00:00:00Z"); // > 1 month ago
-const RECENT = new Date("2026-02-10T00:00:00Z"); // < 1 month ago
-
-const following: Follower[] = [
-  { username: "alice", followedAt: new Date("2025-01-01") }, // follows back, never interacted
-  { username: "bob", followedAt: new Date("2025-06-01") }, // follows back, interacted
-  { username: "carol", followedAt: new Date("2025-03-01") }, // doesn't follow back, no DM
-  { username: "dave", followedAt: new Date("2025-05-01") }, // doesn't follow back, old DM
-  { username: "eve", followedAt: new Date("2025-07-01") }, // doesn't follow back, recent DM
-];
-
-const followerSet = new Set(["alice", "bob"]);
-const interactors = new Set(["bob"]);
-const sentDMs = new Map([
-  ["dave", LONG_AGO],
-  ["eve", RECENT],
-]);
-
-// ─── Tests ────────────────────────────────────────────────────────────────────
-
-describe("classifyInteractions", () => {
-  let result: ReturnType<typeof classifyInteractions>;
-
+describe("interaction-analyser", () => {
   beforeEach(() => {
-    result = classifyInteractions(following, followerSet, interactors, sentDMs, NOW);
+    jest.resetAllMocks();
+    process.env.INSTAGRAM_DATA_PATH = "/mock/data";
+
+    // Default mocks for non-existent things to avoid errors
+    mockFs.existsSync.mockReturnValue(false);
+    mockFs.readdirSync.mockReturnValue([] as any);
   });
 
-  describe("neverInteracted", () => {
-    it("includes accounts that follow back but never interacted", () => {
-      expect(result.neverInteracted).toContain("alice");
-    });
-
-    it("excludes accounts that follow back AND interacted", () => {
-      expect(result.neverInteracted).not.toContain("bob");
-    });
-
-    it("excludes accounts that don't follow back", () => {
-      expect(result.neverInteracted).not.toContain("carol");
-      expect(result.neverInteracted).not.toContain("dave");
-    });
-  });
-
-  describe("unfollowCandidates", () => {
-    it("includes accounts with DM sent > 1 month ago and no follow-back", () => {
-      expect(result.unfollowCandidates).toContain("dave");
-    });
-
-    it("excludes accounts with recent DM (give them more time)", () => {
-      expect(result.unfollowCandidates).not.toContain("eve");
-    });
-
-    it("excludes accounts that follow back", () => {
-      expect(result.unfollowCandidates).not.toContain("alice");
-      expect(result.unfollowCandidates).not.toContain("bob");
-    });
-
-    it("excludes accounts never DM'd", () => {
-      expect(result.unfollowCandidates).not.toContain("carol");
+  describe("analyseInteractionsFromAPI", () => {
+    it("returns empty arrays since API does not support interaction analysis", async () => {
+      const result = await analyseInteractionsFromAPI("token", "123");
+      expect(result).toEqual({
+        neverInteracted: [],
+        dmSuggestionsNoFollowBack: [],
+        dmSuggestionsMutual: [],
+        unfollowCandidates: [],
+        dataSource: "api",
+      });
     });
   });
 
-  describe("edge cases", () => {
-    it("handles empty following list", () => {
-      const r = classifyInteractions([], followerSet, interactors, sentDMs, NOW);
-      expect(r.neverInteracted).toHaveLength(0);
-      expect(r.unfollowCandidates).toHaveLength(0);
+  describe("analyseInteractions HTML Export", () => {
+    it("returns null if no export folder", async () => {
+      mockFs.existsSync.mockImplementation((p) => {
+        if (p === "/mock/data") return false;
+        return false;
+      });
+      const result = await analyseInteractions();
+      expect(result).toBeNull();
     });
 
-    it("handles account on the boundary of 1 month exactly", () => {
-      const exactlyOneMonthAgo = new Date(NOW - 30 * 24 * 60 * 60 * 1000);
-      const dms = new Map([["frank", exactlyOneMonthAgo]]);
-      const fol = [{ username: "frank", followedAt: new Date("2025-01-01") }];
-      const r = classifyInteractions(fol, new Set(), new Set(), dms, NOW);
-      // Exactly on boundary: NOT > 1 month, so not an unfollow candidate
-      expect(r.unfollowCandidates).not.toContain("frank");
+    it("parses HTML export correctly", async () => {
+      // Mock finding the export folder
+      mockFs.existsSync.mockImplementation((p: any) => {
+        if (typeof p !== "string") return false;
+        if (p === "/mock/data") return true;
+        if (p === "/mock/data/instagram-test") return true;
+        if (p === path.join("/mock/data/instagram-test", "connections", "followers_and_following"))
+          return true;
+
+        // Mock specific directories
+        if (p.includes("your_instagram_activity/comments")) return true;
+        if (p.includes("your_instagram_activity/likes")) return true;
+        if (p.includes("your_instagram_activity/direct")) return true;
+
+        if (p.endsWith("followers_1.html")) return true;
+        if (p.endsWith("following.html")) return true;
+        if (p.endsWith("post_comments.html")) return true;
+        if (p.endsWith("liked_posts.html")) return true;
+        if (p.endsWith("userA.html")) return true;
+        if (p.endsWith("userB.html")) return true;
+
+        return false;
+      });
+
+      mockFs.readdirSync.mockImplementation((p: any): any => {
+        if (typeof p !== "string") return [];
+        if (p === "/mock/data") return ["instagram-test"];
+        if (p.includes("followers_and_following")) return ["followers_1.html", "following.html"];
+        if (p.includes("comments")) return ["post_comments.html"];
+        if (p.includes("likes")) return ["liked_posts.html"];
+        if (p.includes("direct")) return ["userA.html", "userB.html"];
+        return [];
+      });
+
+      mockFs.statSync.mockImplementation((p: any): any => {
+        if (typeof p !== "string") return { isDirectory: () => false };
+        if (p === "/mock/data/instagram-test") return { isDirectory: () => true };
+        return { isDirectory: () => false };
+      });
+
+      mockFs.readFileSync.mockImplementation((p: any): any => {
+        if (typeof p !== "string") return "";
+        if (p.endsWith("followers_1.html")) {
+          return `<div>
+            <a href="https://www.instagram.com/alice">alice</a><div>Jan 01, 2025 10:00 AM</div>
+            <a href="https://www.instagram.com/bob">bob</a><div>Juin 01, 2025 02:00 PM</div>
+            <a href="https://www.instagram.com/frank">frank</a><div>12:00 am</div>
+          </div>`;
+        }
+        if (p.endsWith("following.html")) {
+          return `<div>
+            <a href="https://www.instagram.com/alice">alice</a><div>Jan 01, 2025 10:00 AM</div>
+            <a href="https://www.instagram.com/bob">bob</a><div>Jun 01, 2025 10:00 AM</div>
+            <a href="https://www.instagram.com/carol">carol</a><div>Mar 01, 2025 10:00 AM</div>
+            <a href="https://www.instagram.com/dave">dave</a><div>May 01, 2025 10:00 AM</div>
+          </div>`;
+        }
+        if (p.endsWith("post_comments.html")) {
+          return `<div class="_a706">bob</div>`;
+        }
+        if (p.endsWith("liked_posts.html")) {
+          return `<a href="https://www.instagram.com/bob">bob liked this</a>`;
+        }
+        if (p.endsWith("userA.html")) {
+          // Simulate two dates to trigger the else block "already has username"
+          return `<title>dave_123</title>
+            <div class="_a706">2023-01-01T10:00:00</div>
+            <div class="_a706">2023-01-02T10:00:00</div>
+          `; // very old DM -> Unfollow
+        }
+        if (p.endsWith("userB.html")) {
+          // This simulates a recent date. To make it robust, we calculate a date a few days ago based on current run time,
+          // but for the sake of HTML parsing test, a hardcoded recent date is fine if we mock Date.now() or just use a future date.
+          return `<title>eve_123</title><div class="_a706">2030-01-01T10:00:00</div>`; // very new DM
+        }
+        return "";
+      });
+
+      const result = await analyseInteractions();
+      expect(result).not.toBeNull();
+      if (!result) return;
+
+      expect(result.dataSource).toBe("export");
+      // Mutual, no interaction (alice)
+      expect(result.neverInteracted).toHaveLength(1);
+      expect(result.neverInteracted[0].username).toBe("alice");
+
+      // Mutual (alice, bob). Bob had interaction, but never reached out through DM? Actually parseSentDMs doesn't see bob
+      expect(result.dmSuggestionsMutual.map((s) => s.username)).toContain("alice");
+      expect(result.dmSuggestionsMutual.map((s) => s.username)).toContain("bob");
+
+      // Not mutual, no DM (carol)
+      expect(result.dmSuggestionsNoFollowBack.map((s) => s.username)).toContain("carol");
+
+      // Not mutual, Old DM (dave) -> Unfollow
+      expect(result.unfollowCandidates.map((s) => s.username)).toContain("dave");
+    });
+  });
+
+  describe("analyseInteractions JSON Export", () => {
+    it("parses JSON export correctly", async () => {
+      mockFs.existsSync.mockImplementation((p: any) => {
+        if (typeof p !== "string") return false;
+        if (p === "/mock/data") return true;
+        if (p === "/mock/data/instagram-test") return true;
+        if (p === path.join("/mock/data/instagram-test", "connections", "followers_and_following"))
+          return true;
+        // JSON detection
+        if (p.endsWith("followers_1.json")) return true;
+        if (p.endsWith("following.json")) return true;
+        if (p.endsWith("message_1.json")) return true;
+        if (p.includes("your_instagram_activity/messages/inbox")) return true;
+        return false;
+      });
+
+      mockFs.readdirSync.mockImplementation((p: any): any => {
+        if (typeof p !== "string") return [];
+        if (p === "/mock/data") return ["instagram-test"];
+        if (p.includes("followers_and_following")) return ["followers_1.json", "following.json"];
+        if (p.includes("inbox")) return ["dave_123", "eve_124"];
+        return [];
+      });
+
+      mockFs.statSync.mockImplementation((p: any): any => {
+        if (typeof p !== "string") return { isDirectory: () => false };
+        if (p === "/mock/data/instagram-test") return { isDirectory: () => true };
+        if (p.includes("dave_123")) return { isDirectory: () => true };
+        if (p.includes("eve_124")) return { isDirectory: () => true };
+        return { isDirectory: () => false };
+      });
+
+      mockFs.readFileSync.mockImplementation((p: any): any => {
+        if (typeof p !== "string") return "";
+        if (p.endsWith("followers_1.json")) {
+          return JSON.stringify([
+            { string_list_data: [{ value: "alice", timestamp: 1700000000 }] },
+            { string_list_data: [{ value: "bob" }] }, // missing timestamp
+          ]);
+        }
+        if (p.endsWith("following.json")) {
+          return JSON.stringify({
+            relationships_following: [
+              { title: "alice", string_list_data: [{ value: "alice", timestamp: 1700000000 }] },
+              { title: "bob", string_list_data: [{ value: "bob", timestamp: 1700000000 }] },
+              { title: "carol", string_list_data: [{ value: "carol", timestamp: 1700000000 }] },
+              { title: "dave", string_list_data: [{ value: "dave", timestamp: 1700000000 }] },
+            ],
+          });
+        }
+        if (p.includes("dave_123/message_1.json")) {
+          // Old timestamp
+          return JSON.stringify({
+            messages: [{ sender_name: "me", timestamp_ms: new Date("2020-01-01").getTime() }],
+          });
+        }
+        if (p.includes("eve_124/message_1.json")) {
+          // Recent timestamp
+          return JSON.stringify({ messages: [{ sender_name: "me", timestamp_ms: Date.now() }] });
+        }
+        return "";
+      });
+
+      const result = await analyseInteractions();
+      expect(result).not.toBeNull();
+      if (!result) return;
+
+      expect(result.dataSource).toBe("export");
+      expect(result.neverInteracted.map((s) => s.username)).toContain("alice");
+      expect(result.neverInteracted.map((s) => s.username)).toContain("bob");
+
+      expect(result.dmSuggestionsMutual.map((s) => s.username)).toContain("alice");
+
+      expect(result.dmSuggestionsNoFollowBack.map((s) => s.username)).toContain("carol");
+
+      expect(result.unfollowCandidates.map((s) => s.username)).toContain("dave");
     });
   });
 });
