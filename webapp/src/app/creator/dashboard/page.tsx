@@ -31,6 +31,8 @@ import { useInstagramData } from "@/hooks/useInstagramData";
 import { formatNumber, formatDate } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
+import { OnboardingWizard } from "@/components/creator/OnboardingWizard";
+import { loadOnboarding } from "@/lib/onboarding-store";
 import { subDays, subMonths, subYears, startOfDay, endOfDay, format } from "date-fns";
 
 const TYPE_LABELS: Record<string, string> = {
@@ -48,6 +50,13 @@ export default function CreatorDashboard() {
   const { data, isLoading, mutate } = useInstagramData(dateRange);
   const t = useT();
   const [includeReels, setIncludeReels] = useState(false);
+
+  // Onboarding wizard: shown when not yet completed/skipped
+  const [showOnboarding, setShowOnboarding] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    const state = loadOnboarding();
+    return !state.completed && !state.skippedAt;
+  });
 
   const handlePeriodChange = (newPeriod: typeof period) => {
     setPeriod(newPeriod);
@@ -219,6 +228,14 @@ export default function CreatorDashboard() {
 
   return (
     <div className="min-h-screen bg-background">
+      {showOnboarding && (
+        <OnboardingWizard
+          hasData={!isLoading && !!data && data.dataSource !== "mock"}
+          onUploadRequest={() => zipInputRef.current?.click()}
+          onDone={() => setShowOnboarding(false)}
+        />
+      )}
+
       <Header profile={data?.profile} mode="creator" />
 
       <div className="mx-auto max-w-7xl px-4 py-8 md:px-6">
