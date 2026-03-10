@@ -5,6 +5,8 @@ import {
   stripJsonFences,
   getActiveProvider,
 } from "@/lib/ai-provider";
+import { sanitizePromptInput, wrapUserInput } from "@/lib/sanitize";
+import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limiter";
 import type { ReelIdeasRequest, ReelIdeasResponse, ReelIdea } from "@/types/instagram";
 
 export const dynamic = "force-dynamic";
@@ -33,7 +35,21 @@ async function generateWithGeminiGrounding(prompt: string): Promise<string> {
   }
 }
 
+/** 5 reel idea generations per 2 minutes per IP. */
+const RATE_LIMIT = { max: 5, windowMs: 2 * 60 * 1000 };
+
 export async function POST(request: Request): Promise<NextResponse<ReelIdeasResponse>> {
+  const ip = request.headers.get("x-forwarded-for") ?? "unknown";
+  const rlKey = `reels-ideas:${ip}`;
+  const headers = rateLimitHeaders(rlKey, RATE_LIMIT.max, RATE_LIMIT.windowMs);
+
+  if (!checkRateLimit(rlKey, RATE_LIMIT.max, RATE_LIMIT.windowMs)) {
+    return NextResponse.json(
+      { success: false, error: "Too many requests — please wait before generating again" },
+      { status: 429, headers }
+    );
+  }
+
   try {
     const body: ReelIdeasRequest = await request.json();
     const { idea, profile, recentCaptions = [], audienceInsights } = body;
@@ -69,14 +85,18 @@ export async function POST(request: Request): Promise<NextResponse<ReelIdeasResp
       .map((c, i) => `${i + 1}. "${c.substring(0, 150)}"`)
       .join("\n");
 
+    const safeIdea = wrapUserInput(idea, "reel_idea", 400);
+    const safeBio = sanitizePromptInput(profile.bio ?? "", 200);
+    const safeUsername = sanitizePromptInput(profile.username ?? "creator", 50);
+
     const prompt = `Tu es un expert en stratégie de contenu Instagram Reels pour créateurs francophones.
 
-Un créateur Instagram @${profile.username ?? "creator"} (${(profile.followerCount ?? 0).toLocaleString("fr-FR")} abonnés) souhaite créer un réel sur le sujet suivant :
+Un créateur Instagram @${safeUsername} (${(profile.followerCount ?? 0).toLocaleString("fr-FR")} abonnés) souhaite créer un réel sur le sujet suivant :
 
-**Idée du réel** : ${idea}
+**Idée du réel** : ${safeIdea}
 
 **Profil du créateur** :
-- Bio : "${profile.bio ?? "N/A"}"
+- Bio : "${safeBio || "N/A"}"
 - Audience principale : ${topGender}, ${topAge} ans, majoritairement en ${topCountry}
 
 ${captionsSample ? `**Captions récentes (style, ton, niche)** :\n${captionsSample}\n` : ""}
@@ -110,16 +130,32 @@ Réponds UNIQUEMENT avec ce JSON (sans markdown) :
       raw = await generateText(prompt, { maxTokens: 3000 });
     }
 
-    const parsed = JSON.parse(stripJsonFences(raw)) as {
-      trendingTopics: string[];
-      ideas: ReelIdea[];
-    };
+    let parsed: { trendingTopics: string[]; ideas: ReelIdea[] };
+    try {
+      parsed = JSON.parse(stripJsonFences(raw)) as typeof parsed;
+    } catch {
+      console.error("Failed to parse Gemini JSON response in /api/reels/ideas");
+      return NextResponse.json(
+        { success: false, error: "AI returned an unexpected response format" },
+        { status: 502, headers }
+      );
+    }
 
-    return NextResponse.json({
-      success: true,
-      ideas: parsed.ideas,
-      trendingTopics: parsed.trendingTopics,
-    });
+    if (!Array.isArray(parsed.ideas) || !Array.isArray(parsed.trendingTopics)) {
+      return NextResponse.json(
+        { success: false, error: "AI response is missing required fields" },
+        { status: 502, headers }
+      );
+    }
+
+    return NextResponse.json(
+      {
+        success: true,
+        ideas: parsed.ideas,
+        trendingTopics: parsed.trendingTopics,
+      },
+      { headers }
+    );
   } catch (error) {
     console.error("Error in /api/reels/ideas:", error);
     return NextResponse.json(

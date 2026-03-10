@@ -29,6 +29,29 @@ export async function POST(
 
     const buffer = Buffer.from(arrayBuffer);
 
+    // ── ZIP magic bytes validation (PK\x03\x04) ──────────────────────────────
+    if (
+      buffer.length < 4 ||
+      buffer[0] !== 0x50 ||
+      buffer[1] !== 0x4b ||
+      buffer[2] !== 0x03 ||
+      buffer[3] !== 0x04
+    ) {
+      return NextResponse.json(
+        { success: false, error: "Invalid file — not a valid ZIP archive" },
+        { status: 400 }
+      );
+    }
+
+    // ── File-size guard: refuse ZIPs larger than 500 MB ──────────────────────
+    const MAX_ZIP_BYTES = 500 * 1024 * 1024;
+    if (buffer.length > MAX_ZIP_BYTES) {
+      return NextResponse.json(
+        { success: false, error: "ZIP file exceeds the 500 MB size limit" },
+        { status: 413 }
+      );
+    }
+
     const zip = new AdmZip(buffer);
     const entries = zip.getEntries();
 
@@ -128,7 +151,13 @@ export async function POST(
       }
       if (!relativePath) continue;
 
-      const outPath = path.join(targetPath, relativePath);
+      // ── Path-traversal guard ────────────────────────────────────────────────
+      const outPath = path.resolve(targetPath, relativePath);
+      if (!outPath.startsWith(targetPath + path.sep) && outPath !== targetPath) {
+        console.warn("Skipping suspicious path in ZIP:", entry.entryName);
+        continue;
+      }
+
       const outDir = path.dirname(outPath);
       fs.mkdirSync(outDir, { recursive: true });
       fs.writeFileSync(outPath, entry.getData());

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { callGeminiVision, generateText, isAIConfigured, stripJsonFences } from "@/lib/ai-provider";
+import { escapeMarkdown, sanitizePromptInput } from "@/lib/sanitize";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +21,11 @@ interface BugReportResponse {
 export async function POST(request: Request): Promise<NextResponse<BugReportResponse>> {
   try {
     const body: BugReportRequest = await request.json();
-    const { screenshot, video, description, pageUrl, userAgent } = body;
+    const { screenshot, video } = body;
+    // Sanitize free-text fields before AI injection or Markdown embedding
+    const description = body.description ? sanitizePromptInput(body.description, 1000) : undefined;
+    const pageUrl = body.pageUrl ? sanitizePromptInput(body.pageUrl, 200) : undefined;
+    const userAgent = body.userAgent ? sanitizePromptInput(body.userAgent, 200) : undefined;
 
     if (!screenshot && !video && !description?.trim()) {
       return NextResponse.json(
@@ -84,14 +89,14 @@ Réponds UNIQUEMENT avec ce JSON (sans markdown) :
           severity: string;
         };
         issueTitle = parsed.title ?? issueTitle;
-        issueBody = `${parsed.body ?? ""}\n\n---\n**Sévérité estimée :** ${parsed.severity ?? "?"}\n**Page :** ${pageUrl ?? "N/A"}\n**Navigateur :** ${userAgent ?? "N/A"}`;
+        issueBody = `${parsed.body ?? ""}\n\n---\n**Sévérité estimée :** ${parsed.severity ?? "?"}\n**Page :** ${escapeMarkdown(pageUrl ?? "N/A")}\n**Navigateur :** ${escapeMarkdown(userAgent ?? "N/A")}`;
       } catch {
         issueBody = description ?? "Pas de description fournie.";
       }
     } else {
       // No AI configured — use raw description
       issueTitle = description?.substring(0, 80) ?? "Bug signalé";
-      issueBody = `**Description :** ${description ?? "—"}\n\n**Page :** ${pageUrl ?? "N/A"}\n**Navigateur :** ${userAgent ?? "N/A"}`;
+      issueBody = `**Description :** ${escapeMarkdown(description ?? "—")}\n\n**Page :** ${escapeMarkdown(pageUrl ?? "N/A")}\n**Navigateur :** ${escapeMarkdown(userAgent ?? "N/A")}`;
     }
 
     // ── Step 2: Handle Attachments via GitHub Contents API ────────────────────

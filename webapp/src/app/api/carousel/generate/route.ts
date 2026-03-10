@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { generateText, isAIConfigured, stripJsonFences, GEMINI_FLASH } from "@/lib/ai-provider";
+import { sanitizePromptInput } from "@/lib/sanitize";
+import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limiter";
 import type {
   CarouselGenerateRequest,
   CarouselGenerateResponse,
@@ -7,6 +9,9 @@ import type {
 } from "@/types/instagram";
 
 export const dynamic = "force-dynamic";
+
+/** 5 carousel generations per 2 minutes per IP. */
+const RATE_LIMIT = { max: 5, windowMs: 2 * 60 * 1000 };
 
 function buildCarouselPrompt(req: CarouselGenerateRequest): string {
   const {
@@ -101,6 +106,17 @@ Reply ONLY with this JSON (no markdown fences, no extra text):
 }
 
 export async function POST(request: Request): Promise<NextResponse<CarouselGenerateResponse>> {
+  const ip = request.headers.get("x-forwarded-for") ?? "unknown";
+  const rlKey = `carousel:${ip}`;
+  const headers = rateLimitHeaders(rlKey, RATE_LIMIT.max, RATE_LIMIT.windowMs);
+
+  if (!checkRateLimit(rlKey, RATE_LIMIT.max, RATE_LIMIT.windowMs)) {
+    return NextResponse.json(
+      { success: false, error: "Too many requests — please wait before generating again" },
+      { status: 429, headers }
+    );
+  }
+
   try {
     const body: CarouselGenerateRequest = await request.json();
 
@@ -110,6 +126,9 @@ export async function POST(request: Request): Promise<NextResponse<CarouselGener
         { status: 400 }
       );
     }
+
+    // Sanitize user-supplied subject before it enters the prompt
+    body.subject = sanitizePromptInput(body.subject, 300);
 
     if (!isAIConfigured()) {
       // Return mock response when no AI provider is configured
@@ -178,18 +197,37 @@ export async function POST(request: Request): Promise<NextResponse<CarouselGener
       });
     }
 
-    const parsed = JSON.parse(stripJsonFences(rawText)) as {
+    let parsed: {
       slides: CarouselSlideContent[];
       instagramDescription: string;
       hashtags: string[];
     };
+    try {
+      parsed = JSON.parse(stripJsonFences(rawText)) as typeof parsed;
+    } catch {
+      console.error("Failed to parse AI JSON response in /api/carousel/generate");
+      return NextResponse.json(
+        { success: false, error: "AI returned an unexpected response format" },
+        { status: 502, headers }
+      );
+    }
 
-    return NextResponse.json({
-      success: true,
-      slides: parsed.slides,
-      instagramDescription: parsed.instagramDescription,
-      hashtags: parsed.hashtags,
-    });
+    if (!Array.isArray(parsed.slides)) {
+      return NextResponse.json(
+        { success: false, error: "AI response is missing slides array" },
+        { status: 502, headers }
+      );
+    }
+
+    return NextResponse.json(
+      {
+        success: true,
+        slides: parsed.slides,
+        instagramDescription: parsed.instagramDescription ?? "",
+        hashtags: parsed.hashtags ?? [],
+      },
+      { headers }
+    );
   } catch (error) {
     console.error("Error in /api/carousel/generate:", error);
     return NextResponse.json(

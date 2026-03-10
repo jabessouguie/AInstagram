@@ -39,6 +39,9 @@ export async function GET(request: Request): Promise<NextResponse<DataApiRespons
     return NextResponse.json({ success: true, data: mockAnalytics });
   } catch (error) {
     console.error("Error in /api/data:", error);
-    return NextResponse.json({ success: true, data: mockAnalytics });
+    return NextResponse.json(
+      { success: false, error: "Failed to load Instagram data" },
+      { status: 500 }
+    );
   }
 }

@@ -95,7 +95,23 @@ export function truncate(str: string, maxLength: number): string {
   return str.slice(0, maxLength - 3) + "...";
 }
 
-/** Generate a random ID */
+/**
+ * Generates a cryptographically random ID using the Web Crypto API.
+ * Prefer this over Math.random() to avoid ID collisions in stores.
+ *
+ * @returns A random hex string of 16 characters.
+ */
 export function generateId(): string {
-  return Math.random().toString(36).substring(2, 10);
+  const arr = new Uint8Array(8);
+  if (typeof crypto !== "undefined" && crypto.getRandomValues) {
+    crypto.getRandomValues(arr);
+  } else {
+    // Node.js fallback (server-side rendering)
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { randomFillSync } = require("crypto") as { randomFillSync: (buf: Uint8Array) => void };
+    randomFillSync(arr);
+  }
+  return Array.from(arr)
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
 }

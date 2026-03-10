@@ -38,16 +38,9 @@ export async function POST(request: Request): Promise<NextResponse<InsightsApiRe
     return NextResponse.json({ success: true, data: result });
   } catch (error) {
     console.error("Error in /api/insights:", error);
-
-    // Graceful fallback to mock insights
-    return NextResponse.json({
-      success: true,
-      data: {
-        insights: mockCreatorInsights,
-        summary: "Analyse basée sur vos données Instagram.",
-        generatedAt: new Date(),
-        model: "fallback",
-      },
-    });
+    return NextResponse.json(
+      { success: false, error: "Failed to generate insights" },
+      { status: 500 }
+    );
   }
 }
