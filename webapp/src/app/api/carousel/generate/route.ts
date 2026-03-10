@@ -32,12 +32,19 @@ function buildCarouselPrompt(req: CarouselGenerateRequest): string {
   const genderLabel =
     audience.gender === "female" ? "women" : audience.gender === "male" ? "men" : "everyone";
 
-  const ageLabel =
-    audience.ageRange && audience.ageRange !== "all" ? `age ${audience.ageRange}` : null;
+  const ageLabel = audience.ageRanges?.length ? `ages ${audience.ageRanges.join(" & ")}` : null;
 
-  const audienceDesc = [genderLabel, ageLabel, audience.region, audience.interests]
-    .filter(Boolean)
-    .join(", ");
+  const audienceDesc =
+    audience.mode === "optimized"
+      ? "AI-determined optimal audience for this specific post topic (choose the audience that will be most engaged and reactive)"
+      : [genderLabel, ageLabel, audience.regions?.join(", "), audience.interests?.join(", ")]
+          .filter(Boolean)
+          .join(", ");
+
+  const audienceInstruction =
+    audience.mode === "optimized"
+      ? `### Target audience\nDetermine yourself the optimal audience for this specific post topic. Adapt all content (vocabulary, examples, tone, references) to maximise engagement for that audience. Briefly mention the chosen target in the Instagram description.\n`
+      : `### Target audience\n${audienceDesc}\n`;
 
   return `You are an experienced solo adventure traveler and Instagram carousel content creator.
 
@@ -46,8 +53,7 @@ Generate the text content for a ${numSlides}-slide Instagram carousel in ${lang}
 ### Subject
 ${subject}
 
-### Target audience
-${audienceDesc}
+${audienceInstruction}
 
 ### Fonts in use
 - Title: ${fonts.title}

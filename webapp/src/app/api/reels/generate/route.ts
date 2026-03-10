@@ -36,7 +36,11 @@ export async function POST(request: Request): Promise<NextResponse<ReelGenerateR
     if (audience) {
       const genderLabel =
         audience.gender === "female" ? "women" : audience.gender === "male" ? "men" : "everyone";
-      const audienceDesc = [genderLabel, audience.region, audience.interests]
+      const audienceDesc = [
+        genderLabel,
+        audience.regions?.join(", "),
+        audience.interests?.join(", "),
+      ]
         .filter(Boolean)
         .join(", ");
       parts.push(`Target audience: ${audienceDesc}.`);

@@ -78,6 +78,7 @@ export default function CreatorDashboard() {
   const [uploadError, setUploadError] = useState("");
   const [uploadProgress, setUploadProgress] = useState(0); // 0-100
   const [uploadFileName, setUploadFileName] = useState("");
+  const [uploadSuccess, setUploadSuccess] = useState(false);
 
   /** Upload a single file via XHR (supports progress events). Returns the full parsed response. */
   const uploadOneFile = useCallback(
@@ -128,7 +129,11 @@ export default function CreatorDashboard() {
           }
         }
         // After all ZIPs are extracted, re-fetch /api/data to parse the merged export
-        if (allOk) mutate();
+        if (allOk) {
+          mutate();
+          setUploadSuccess(true);
+          setTimeout(() => setUploadSuccess(false), 5000);
+        }
       } catch {
         setUploadError(t("upload.error"));
       } finally {
@@ -367,6 +372,11 @@ export default function CreatorDashboard() {
             }}
           />
           {uploadError && <p className="mt-1 text-xs text-destructive">{uploadError}</p>}
+          {uploadSuccess && (
+            <p className="mt-1 flex items-center gap-1.5 text-xs text-emerald-400">
+              ✓ Données précédentes supprimées — nouvel export chargé avec succès.
+            </p>
+          )}
         </div>
 
         <Tabs defaultValue="overview" className="space-y-6">

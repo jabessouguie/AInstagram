@@ -9,6 +9,7 @@ export interface CollabDMRequest {
   collab: CollabMatch;
   profile: Partial<InstagramProfile>;
   feedback?: string;
+  language?: "fr" | "en";
 }
 
 export interface CollabDMResponse {
@@ -20,7 +21,8 @@ export interface CollabDMResponse {
 export async function POST(request: Request): Promise<NextResponse<CollabDMResponse>> {
   try {
     const body: CollabDMRequest = await request.json();
-    const { collab, profile, feedback } = body;
+    const { collab, profile, feedback, language = "fr" } = body;
+    const lang = language === "fr" ? "français" : "English";
 
     if (!isAIConfigured()) {
       return NextResponse.json(
@@ -38,7 +40,7 @@ Tu veux envoyer un premier DM Instagram à ${handle} (${collab.type} dans la nic
 
 Contexte de la collaboration : ${collab.reason}
 
-Rédige un message Instagram direct (DM) en français.
+Rédige un message Instagram direct (DM) en ${lang}.
 
 Règles STRICTES :
 - Max 3 phrases courtes — les DM trop longs ne sont pas lus

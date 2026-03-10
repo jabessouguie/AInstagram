@@ -36,13 +36,16 @@ Tu veux contacter "${collab.name}" (${collab.type} · ${collab.niche}) pour une 
 
 Raison identifiée : ${collab.reason}
 
+**IMPORTANT** : Considère que tu viens tout juste de découvrir cette entreprise/marque — n'affirme pas la connaître depuis longtemps ni avoir une relation existante. Dans l'accroche, explique brièvement comment tu l'as découverte (ex : "En parcourant Instagram, je suis tombé sur votre compte...", "En recherchant des marques dans le secteur...", etc.).
+
 Rédige un email professionnel mais authentique en ${lang} pour proposer une collaboration.
 L'email doit :
 - Avoir un objet accrocheur (< 60 chars)
-- Commencer par une accroche personnalisée sur leur marque/profil
+- Commencer par une accroche sincère expliquant comment tu as découvert leur marque
 - Présenter brièvement le créateur et ses stats (${(profile.followerCount ?? 0).toLocaleString("fr-FR")} abonnés, engagement élevé)
-- Proposer 2-3 formats de collaboration concrets
+- Proposer 2-3 formats de collaboration concrets adaptés à leur niche
 - Avoir un ton professionnel mais humain, pas générique
+- Mentionner "Vous trouverez mon media kit en pièce jointe de cet email" vers la fin
 - Inclure un call-to-action clair
 - Faire 200-300 mots max
 

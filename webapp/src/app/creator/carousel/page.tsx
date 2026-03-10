@@ -18,6 +18,7 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  Loader2,
 } from "lucide-react";
 import { ScheduleModal } from "@/components/calendar/ScheduleModal";
 import { saveItem } from "@/lib/calendar-store";
@@ -33,6 +34,7 @@ import type {
 } from "@/types/instagram";
 import { loadBrandSettings } from "@/lib/brand-settings-store";
 import { saveCarouselContext, saveStoriesContext } from "@/lib/content-prompt-context-store";
+import { OptimalSlotsWidget } from "@/components/creator/OptimalSlotsWidget";
 
 // ─── Canvas renderer ─────────────────────────────────────────────────────────
 
@@ -319,9 +321,71 @@ export default function CarouselPage() {
   const [subject, setSubject] = useState("");
   const [audience, setAudience] = useState<CarouselAudience>({
     gender: "all",
-    region: "France",
-    interests: "",
+    regions: ["France"],
+    interests: [],
+    ageRanges: [],
+    mode: "custom",
   });
+  const [regionInput, setRegionInput] = useState("");
+  const [interestInput, setInterestInput] = useState("");
+  const [isLoadingInterests, setIsLoadingInterests] = useState(false);
+
+  // Auto-fill audience from analytics when "my_audience" mode is selected
+  const applyMyAudience = async () => {
+    const ai = data?.audienceInsights;
+    if (!ai) return;
+
+    // Top gender
+    const topGender =
+      (ai.genderSplit?.female ?? 50) >= (ai.genderSplit?.male ?? 50) ? "female" : "male";
+    // Top 3 countries
+    const topRegions = ai.topCountries
+      ? Object.entries(ai.topCountries)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 3)
+          .map(([c]) => c)
+      : ["France"];
+    // Top 2 age groups (names only)
+    const topAgeRanges = ai.ageGroups
+      ? Object.entries(ai.ageGroups)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 2)
+          .map(([a]) => a)
+      : [];
+
+    // Set regions + age ranges immediately, clear interests while AI derives them
+    setAudience({
+      gender: topGender as CarouselAudience["gender"],
+      regions: topRegions.length ? topRegions : ["France"],
+      interests: [],
+      ageRanges: topAgeRanges,
+      mode: "my_audience",
+    });
+
+    // Async: derive interests from AI analysis of the audience
+    setIsLoadingInterests(true);
+    try {
+      const res = await fetch("/api/audience/interests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          bio: data?.profile?.bio,
+          posts: data?.posts?.slice(0, 10).map((p) => ({ caption: p.caption })),
+          topCountries: topRegions,
+          topAgeGroups: topAgeRanges,
+          genderSplit: ai.genderSplit,
+        }),
+      });
+      const json = (await res.json()) as { success: boolean; interests?: string[] };
+      if (json.success && json.interests?.length) {
+        setAudience((a) => ({ ...a, interests: json.interests! }));
+      }
+    } catch {
+      // silently fail — user can add interests manually
+    } finally {
+      setIsLoadingInterests(false);
+    }
+  };
   const [fonts, setFonts] = useState<CarouselFonts>({
     title: "Playfair Display",
     subtitle: "Montserrat",
@@ -978,69 +1042,196 @@ export default function CarouselPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="mb-1 block text-xs text-muted-foreground">
-                        {t("carousel.audience.gender")}
-                      </label>
-                      <select
-                        value={audience.gender}
-                        onChange={(e) =>
-                          setAudience((a) => ({
-                            ...a,
-                            gender: e.target.value as CarouselAudience["gender"],
-                          }))
-                        }
-                        className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-primary/30"
+                  {/* ── Audience mode selector ── */}
+                  <div className="flex rounded-lg border border-border p-0.5 text-xs">
+                    {(["custom", "my_audience", "optimized"] as const).map((mode) => (
+                      <button
+                        key={mode}
+                        onClick={() => {
+                          if (mode === "my_audience") {
+                            applyMyAudience();
+                          } else {
+                            setAudience((a) => ({ ...a, mode }));
+                          }
+                        }}
+                        className={`flex-1 rounded-md px-2 py-1.5 text-center font-medium transition-colors ${
+                          audience.mode === mode
+                            ? "bg-primary text-primary-foreground"
+                            : "text-muted-foreground hover:text-foreground"
+                        }`}
                       >
-                        <option value="all">{t("carousel.audience.genderAll")}</option>
-                        <option value="female">{t("carousel.audience.genderFemale")}</option>
-                        <option value="male">{t("carousel.audience.genderMale")}</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-xs text-muted-foreground">
-                        {t("carousel.audience.ageRange")}
-                      </label>
-                      <select
-                        value={audience.ageRange ?? "all"}
-                        onChange={(e) => setAudience((a) => ({ ...a, ageRange: e.target.value }))}
-                        className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-primary/30"
-                      >
-                        <option value="all">{t("carousel.audience.ageAll")}</option>
-                        <option value="13-17">13–17</option>
-                        <option value="18-24">18–24</option>
-                        <option value="25-34">25–34</option>
-                        <option value="35-44">35–44</option>
-                        <option value="45-54">45–54</option>
-                        <option value="55+">55+</option>
-                      </select>
-                    </div>
+                        {mode === "custom"
+                          ? "Personnalisé"
+                          : mode === "my_audience"
+                            ? "Mon audience"
+                            : "Optimisée"}
+                      </button>
+                    ))}
                   </div>
-                  <div>
-                    <label className="mb-1 block text-xs text-muted-foreground">
-                      {t("carousel.audience.region")}
-                    </label>
-                    <input
-                      type="text"
-                      value={audience.region}
-                      onChange={(e) => setAudience((a) => ({ ...a, region: e.target.value }))}
-                      placeholder={t("carousel.audience.regionPlaceholder")}
-                      className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-primary/30"
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-xs text-muted-foreground">
-                      {t("carousel.audience.interests")}
-                    </label>
-                    <input
-                      type="text"
-                      value={audience.interests}
-                      onChange={(e) => setAudience((a) => ({ ...a, interests: e.target.value }))}
-                      placeholder={t("carousel.audience.interestsPlaceholder")}
-                      className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-primary/30"
-                    />
-                  </div>
+
+                  {audience.mode === "optimized" ? (
+                    <p className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-muted-foreground">
+                      ✨ L'IA déterminera automatiquement l'audience la plus réactive pour ce sujet.
+                    </p>
+                  ) : (
+                    <>
+                      {/* Gender */}
+                      <div>
+                        <label className="mb-1 block text-xs text-muted-foreground">
+                          {t("carousel.audience.gender")}
+                        </label>
+                        <select
+                          value={audience.gender}
+                          onChange={(e) =>
+                            setAudience((a) => ({
+                              ...a,
+                              gender: e.target.value as CarouselAudience["gender"],
+                            }))
+                          }
+                          className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-primary/30"
+                        >
+                          <option value="all">{t("carousel.audience.genderAll")}</option>
+                          <option value="female">{t("carousel.audience.genderFemale")}</option>
+                          <option value="male">{t("carousel.audience.genderMale")}</option>
+                        </select>
+                      </div>
+
+                      {/* Age ranges — multi-select badges */}
+                      <div>
+                        <label className="mb-1 block text-xs text-muted-foreground">
+                          Tranches d&apos;âge
+                        </label>
+                        <div className="flex flex-wrap gap-1.5 pt-0.5">
+                          {["13-17", "18-24", "25-34", "35-44", "45-54", "55+"].map((range) => (
+                            <button
+                              key={range}
+                              type="button"
+                              onClick={() =>
+                                setAudience((a) => ({
+                                  ...a,
+                                  ageRanges: a.ageRanges.includes(range)
+                                    ? a.ageRanges.filter((r) => r !== range)
+                                    : [...a.ageRanges, range],
+                                }))
+                              }
+                              className={`rounded-full border px-2 py-0.5 text-xs font-medium transition-colors ${
+                                audience.ageRanges.includes(range)
+                                  ? "border-primary bg-primary text-primary-foreground"
+                                  : "border-border text-muted-foreground hover:border-primary/50"
+                              }`}
+                            >
+                              {range}
+                            </button>
+                          ))}
+                        </div>
+                        {audience.ageRanges.length === 0 && (
+                          <p className="mt-1 text-[10px] text-muted-foreground">
+                            Aucune sélection = tous les âges
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Regions — tag input */}
+                      <div>
+                        <label className="mb-1 block text-xs text-muted-foreground">Régions</label>
+                        {audience.regions.length > 0 && (
+                          <div className="mb-1.5 flex flex-wrap gap-1">
+                            {audience.regions.map((r) => (
+                              <span
+                                key={r}
+                                className="inline-flex items-center gap-1 rounded-full border border-border bg-muted/40 px-2 py-0.5 text-xs"
+                              >
+                                {r}
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setAudience((a) => ({
+                                      ...a,
+                                      regions: a.regions.filter((x) => x !== r),
+                                    }))
+                                  }
+                                  className="text-muted-foreground hover:text-foreground"
+                                >
+                                  ×
+                                </button>
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        <input
+                          type="text"
+                          value={regionInput}
+                          onChange={(e) => setRegionInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if ((e.key === "Enter" || e.key === ",") && regionInput.trim()) {
+                              e.preventDefault();
+                              const val = regionInput.trim().replace(/,$/, "");
+                              if (val && !audience.regions.includes(val)) {
+                                setAudience((a) => ({ ...a, regions: [...a.regions, val] }));
+                              }
+                              setRegionInput("");
+                            }
+                          }}
+                          placeholder="France, Belgique… (Entrée pour ajouter)"
+                          className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-primary/30"
+                        />
+                      </div>
+
+                      {/* Interests — tag input */}
+                      <div>
+                        <label className="mb-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+                          Centres d&apos;intérêt
+                          {isLoadingInterests && <Loader2 className="h-3 w-3 animate-spin" />}
+                        </label>
+                        {isLoadingInterests && audience.interests.length === 0 && (
+                          <p className="mb-1.5 text-[10px] italic text-muted-foreground">
+                            Analyse de l&apos;audience en cours…
+                          </p>
+                        )}
+                        {audience.interests.length > 0 && (
+                          <div className="mb-1.5 flex flex-wrap gap-1">
+                            {audience.interests.map((interest) => (
+                              <span
+                                key={interest}
+                                className="inline-flex items-center gap-1 rounded-full border border-border bg-muted/40 px-2 py-0.5 text-xs"
+                              >
+                                {interest}
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setAudience((a) => ({
+                                      ...a,
+                                      interests: a.interests.filter((x) => x !== interest),
+                                    }))
+                                  }
+                                  className="text-muted-foreground hover:text-foreground"
+                                >
+                                  ×
+                                </button>
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        <input
+                          type="text"
+                          value={interestInput}
+                          onChange={(e) => setInterestInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if ((e.key === "Enter" || e.key === ",") && interestInput.trim()) {
+                              e.preventDefault();
+                              const val = interestInput.trim().replace(/,$/, "");
+                              if (val && !audience.interests.includes(val)) {
+                                setAudience((a) => ({ ...a, interests: [...a.interests, val] }));
+                              }
+                              setInterestInput("");
+                            }
+                          }}
+                          placeholder="fitness, lifestyle… (Entrée pour ajouter)"
+                          className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-primary/30"
+                        />
+                      </div>
+                    </>
+                  )}
                 </CardContent>
               </Card>
 
@@ -1319,6 +1510,15 @@ export default function CarouselPage() {
                     <p className="text-xs text-destructive">
                       {result.error ?? t("carousel.error.generic")}
                     </p>
+                  )}
+
+                  {/* ── Optimal slots widget ── */}
+                  {result?.success && calendarSlots.length > 0 && (
+                    <OptimalSlotsWidget
+                      slots={calendarSlots}
+                      contentType="carousel"
+                      caption={result.instagramDescription}
+                    />
                   )}
                 </CardContent>
               </Card>
@@ -1603,69 +1803,196 @@ export default function CarouselPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="mb-1 block text-xs text-muted-foreground">
-                        {t("carousel.audience.gender")}
-                      </label>
-                      <select
-                        value={audience.gender}
-                        onChange={(e) =>
-                          setAudience((a) => ({
-                            ...a,
-                            gender: e.target.value as CarouselAudience["gender"],
-                          }))
-                        }
-                        className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-primary/30"
+                  {/* ── Audience mode selector ── */}
+                  <div className="flex rounded-lg border border-border p-0.5 text-xs">
+                    {(["custom", "my_audience", "optimized"] as const).map((mode) => (
+                      <button
+                        key={mode}
+                        onClick={() => {
+                          if (mode === "my_audience") {
+                            applyMyAudience();
+                          } else {
+                            setAudience((a) => ({ ...a, mode }));
+                          }
+                        }}
+                        className={`flex-1 rounded-md px-2 py-1.5 text-center font-medium transition-colors ${
+                          audience.mode === mode
+                            ? "bg-primary text-primary-foreground"
+                            : "text-muted-foreground hover:text-foreground"
+                        }`}
                       >
-                        <option value="all">{t("carousel.audience.genderAll")}</option>
-                        <option value="female">{t("carousel.audience.genderFemale")}</option>
-                        <option value="male">{t("carousel.audience.genderMale")}</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-xs text-muted-foreground">
-                        {t("carousel.audience.ageRange")}
-                      </label>
-                      <select
-                        value={audience.ageRange ?? "all"}
-                        onChange={(e) => setAudience((a) => ({ ...a, ageRange: e.target.value }))}
-                        className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-primary/30"
-                      >
-                        <option value="all">{t("carousel.audience.ageAll")}</option>
-                        <option value="13-17">13–17</option>
-                        <option value="18-24">18–24</option>
-                        <option value="25-34">25–34</option>
-                        <option value="35-44">35–44</option>
-                        <option value="45-54">45–54</option>
-                        <option value="55+">55+</option>
-                      </select>
-                    </div>
+                        {mode === "custom"
+                          ? "Personnalisé"
+                          : mode === "my_audience"
+                            ? "Mon audience"
+                            : "Optimisée"}
+                      </button>
+                    ))}
                   </div>
-                  <div>
-                    <label className="mb-1 block text-xs text-muted-foreground">
-                      {t("carousel.audience.region")}
-                    </label>
-                    <input
-                      type="text"
-                      value={audience.region}
-                      onChange={(e) => setAudience((a) => ({ ...a, region: e.target.value }))}
-                      placeholder={t("carousel.audience.regionPlaceholder")}
-                      className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-primary/30"
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-xs text-muted-foreground">
-                      {t("carousel.audience.interests")}
-                    </label>
-                    <input
-                      type="text"
-                      value={audience.interests}
-                      onChange={(e) => setAudience((a) => ({ ...a, interests: e.target.value }))}
-                      placeholder={t("carousel.audience.interestsPlaceholder")}
-                      className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-primary/30"
-                    />
-                  </div>
+
+                  {audience.mode === "optimized" ? (
+                    <p className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-muted-foreground">
+                      ✨ L'IA déterminera automatiquement l'audience la plus réactive pour ce sujet.
+                    </p>
+                  ) : (
+                    <>
+                      {/* Gender */}
+                      <div>
+                        <label className="mb-1 block text-xs text-muted-foreground">
+                          {t("carousel.audience.gender")}
+                        </label>
+                        <select
+                          value={audience.gender}
+                          onChange={(e) =>
+                            setAudience((a) => ({
+                              ...a,
+                              gender: e.target.value as CarouselAudience["gender"],
+                            }))
+                          }
+                          className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-primary/30"
+                        >
+                          <option value="all">{t("carousel.audience.genderAll")}</option>
+                          <option value="female">{t("carousel.audience.genderFemale")}</option>
+                          <option value="male">{t("carousel.audience.genderMale")}</option>
+                        </select>
+                      </div>
+
+                      {/* Age ranges — multi-select badges */}
+                      <div>
+                        <label className="mb-1 block text-xs text-muted-foreground">
+                          Tranches d&apos;âge
+                        </label>
+                        <div className="flex flex-wrap gap-1.5 pt-0.5">
+                          {["13-17", "18-24", "25-34", "35-44", "45-54", "55+"].map((range) => (
+                            <button
+                              key={range}
+                              type="button"
+                              onClick={() =>
+                                setAudience((a) => ({
+                                  ...a,
+                                  ageRanges: a.ageRanges.includes(range)
+                                    ? a.ageRanges.filter((r) => r !== range)
+                                    : [...a.ageRanges, range],
+                                }))
+                              }
+                              className={`rounded-full border px-2 py-0.5 text-xs font-medium transition-colors ${
+                                audience.ageRanges.includes(range)
+                                  ? "border-primary bg-primary text-primary-foreground"
+                                  : "border-border text-muted-foreground hover:border-primary/50"
+                              }`}
+                            >
+                              {range}
+                            </button>
+                          ))}
+                        </div>
+                        {audience.ageRanges.length === 0 && (
+                          <p className="mt-1 text-[10px] text-muted-foreground">
+                            Aucune sélection = tous les âges
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Regions — tag input */}
+                      <div>
+                        <label className="mb-1 block text-xs text-muted-foreground">Régions</label>
+                        {audience.regions.length > 0 && (
+                          <div className="mb-1.5 flex flex-wrap gap-1">
+                            {audience.regions.map((r) => (
+                              <span
+                                key={r}
+                                className="inline-flex items-center gap-1 rounded-full border border-border bg-muted/40 px-2 py-0.5 text-xs"
+                              >
+                                {r}
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setAudience((a) => ({
+                                      ...a,
+                                      regions: a.regions.filter((x) => x !== r),
+                                    }))
+                                  }
+                                  className="text-muted-foreground hover:text-foreground"
+                                >
+                                  ×
+                                </button>
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        <input
+                          type="text"
+                          value={regionInput}
+                          onChange={(e) => setRegionInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if ((e.key === "Enter" || e.key === ",") && regionInput.trim()) {
+                              e.preventDefault();
+                              const val = regionInput.trim().replace(/,$/, "");
+                              if (val && !audience.regions.includes(val)) {
+                                setAudience((a) => ({ ...a, regions: [...a.regions, val] }));
+                              }
+                              setRegionInput("");
+                            }
+                          }}
+                          placeholder="France, Belgique… (Entrée pour ajouter)"
+                          className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-primary/30"
+                        />
+                      </div>
+
+                      {/* Interests — tag input */}
+                      <div>
+                        <label className="mb-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+                          Centres d&apos;intérêt
+                          {isLoadingInterests && <Loader2 className="h-3 w-3 animate-spin" />}
+                        </label>
+                        {isLoadingInterests && audience.interests.length === 0 && (
+                          <p className="mb-1.5 text-[10px] italic text-muted-foreground">
+                            Analyse de l&apos;audience en cours…
+                          </p>
+                        )}
+                        {audience.interests.length > 0 && (
+                          <div className="mb-1.5 flex flex-wrap gap-1">
+                            {audience.interests.map((interest) => (
+                              <span
+                                key={interest}
+                                className="inline-flex items-center gap-1 rounded-full border border-border bg-muted/40 px-2 py-0.5 text-xs"
+                              >
+                                {interest}
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setAudience((a) => ({
+                                      ...a,
+                                      interests: a.interests.filter((x) => x !== interest),
+                                    }))
+                                  }
+                                  className="text-muted-foreground hover:text-foreground"
+                                >
+                                  ×
+                                </button>
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        <input
+                          type="text"
+                          value={interestInput}
+                          onChange={(e) => setInterestInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if ((e.key === "Enter" || e.key === ",") && interestInput.trim()) {
+                              e.preventDefault();
+                              const val = interestInput.trim().replace(/,$/, "");
+                              if (val && !audience.interests.includes(val)) {
+                                setAudience((a) => ({ ...a, interests: [...a.interests, val] }));
+                              }
+                              setInterestInput("");
+                            }
+                          }}
+                          placeholder="fitness, lifestyle… (Entrée pour ajouter)"
+                          className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-primary/30"
+                        />
+                      </div>
+                    </>
+                  )}
                 </CardContent>
               </Card>
 
@@ -2066,69 +2393,196 @@ export default function CarouselPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="mb-1 block text-xs text-muted-foreground">
-                        {t("carousel.audience.gender")}
-                      </label>
-                      <select
-                        value={audience.gender}
-                        onChange={(e) =>
-                          setAudience((a) => ({
-                            ...a,
-                            gender: e.target.value as CarouselAudience["gender"],
-                          }))
-                        }
-                        className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-primary/30"
+                  {/* ── Audience mode selector ── */}
+                  <div className="flex rounded-lg border border-border p-0.5 text-xs">
+                    {(["custom", "my_audience", "optimized"] as const).map((mode) => (
+                      <button
+                        key={mode}
+                        onClick={() => {
+                          if (mode === "my_audience") {
+                            applyMyAudience();
+                          } else {
+                            setAudience((a) => ({ ...a, mode }));
+                          }
+                        }}
+                        className={`flex-1 rounded-md px-2 py-1.5 text-center font-medium transition-colors ${
+                          audience.mode === mode
+                            ? "bg-primary text-primary-foreground"
+                            : "text-muted-foreground hover:text-foreground"
+                        }`}
                       >
-                        <option value="all">{t("carousel.audience.genderAll")}</option>
-                        <option value="female">{t("carousel.audience.genderFemale")}</option>
-                        <option value="male">{t("carousel.audience.genderMale")}</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-xs text-muted-foreground">
-                        {t("carousel.audience.ageRange")}
-                      </label>
-                      <select
-                        value={audience.ageRange ?? "all"}
-                        onChange={(e) => setAudience((a) => ({ ...a, ageRange: e.target.value }))}
-                        className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-primary/30"
-                      >
-                        <option value="all">{t("carousel.audience.ageAll")}</option>
-                        <option value="13-17">13–17</option>
-                        <option value="18-24">18–24</option>
-                        <option value="25-34">25–34</option>
-                        <option value="35-44">35–44</option>
-                        <option value="45-54">45–54</option>
-                        <option value="55+">55+</option>
-                      </select>
-                    </div>
+                        {mode === "custom"
+                          ? "Personnalisé"
+                          : mode === "my_audience"
+                            ? "Mon audience"
+                            : "Optimisée"}
+                      </button>
+                    ))}
                   </div>
-                  <div>
-                    <label className="mb-1 block text-xs text-muted-foreground">
-                      {t("carousel.audience.region")}
-                    </label>
-                    <input
-                      type="text"
-                      value={audience.region}
-                      onChange={(e) => setAudience((a) => ({ ...a, region: e.target.value }))}
-                      placeholder={t("carousel.audience.regionPlaceholder")}
-                      className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-primary/30"
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-xs text-muted-foreground">
-                      {t("carousel.audience.interests")}
-                    </label>
-                    <input
-                      type="text"
-                      value={audience.interests}
-                      onChange={(e) => setAudience((a) => ({ ...a, interests: e.target.value }))}
-                      placeholder={t("carousel.audience.interestsPlaceholder")}
-                      className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-primary/30"
-                    />
-                  </div>
+
+                  {audience.mode === "optimized" ? (
+                    <p className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-muted-foreground">
+                      ✨ L'IA déterminera automatiquement l'audience la plus réactive pour ce sujet.
+                    </p>
+                  ) : (
+                    <>
+                      {/* Gender */}
+                      <div>
+                        <label className="mb-1 block text-xs text-muted-foreground">
+                          {t("carousel.audience.gender")}
+                        </label>
+                        <select
+                          value={audience.gender}
+                          onChange={(e) =>
+                            setAudience((a) => ({
+                              ...a,
+                              gender: e.target.value as CarouselAudience["gender"],
+                            }))
+                          }
+                          className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-primary/30"
+                        >
+                          <option value="all">{t("carousel.audience.genderAll")}</option>
+                          <option value="female">{t("carousel.audience.genderFemale")}</option>
+                          <option value="male">{t("carousel.audience.genderMale")}</option>
+                        </select>
+                      </div>
+
+                      {/* Age ranges — multi-select badges */}
+                      <div>
+                        <label className="mb-1 block text-xs text-muted-foreground">
+                          Tranches d&apos;âge
+                        </label>
+                        <div className="flex flex-wrap gap-1.5 pt-0.5">
+                          {["13-17", "18-24", "25-34", "35-44", "45-54", "55+"].map((range) => (
+                            <button
+                              key={range}
+                              type="button"
+                              onClick={() =>
+                                setAudience((a) => ({
+                                  ...a,
+                                  ageRanges: a.ageRanges.includes(range)
+                                    ? a.ageRanges.filter((r) => r !== range)
+                                    : [...a.ageRanges, range],
+                                }))
+                              }
+                              className={`rounded-full border px-2 py-0.5 text-xs font-medium transition-colors ${
+                                audience.ageRanges.includes(range)
+                                  ? "border-primary bg-primary text-primary-foreground"
+                                  : "border-border text-muted-foreground hover:border-primary/50"
+                              }`}
+                            >
+                              {range}
+                            </button>
+                          ))}
+                        </div>
+                        {audience.ageRanges.length === 0 && (
+                          <p className="mt-1 text-[10px] text-muted-foreground">
+                            Aucune sélection = tous les âges
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Regions — tag input */}
+                      <div>
+                        <label className="mb-1 block text-xs text-muted-foreground">Régions</label>
+                        {audience.regions.length > 0 && (
+                          <div className="mb-1.5 flex flex-wrap gap-1">
+                            {audience.regions.map((r) => (
+                              <span
+                                key={r}
+                                className="inline-flex items-center gap-1 rounded-full border border-border bg-muted/40 px-2 py-0.5 text-xs"
+                              >
+                                {r}
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setAudience((a) => ({
+                                      ...a,
+                                      regions: a.regions.filter((x) => x !== r),
+                                    }))
+                                  }
+                                  className="text-muted-foreground hover:text-foreground"
+                                >
+                                  ×
+                                </button>
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        <input
+                          type="text"
+                          value={regionInput}
+                          onChange={(e) => setRegionInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if ((e.key === "Enter" || e.key === ",") && regionInput.trim()) {
+                              e.preventDefault();
+                              const val = regionInput.trim().replace(/,$/, "");
+                              if (val && !audience.regions.includes(val)) {
+                                setAudience((a) => ({ ...a, regions: [...a.regions, val] }));
+                              }
+                              setRegionInput("");
+                            }
+                          }}
+                          placeholder="France, Belgique… (Entrée pour ajouter)"
+                          className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-primary/30"
+                        />
+                      </div>
+
+                      {/* Interests — tag input */}
+                      <div>
+                        <label className="mb-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+                          Centres d&apos;intérêt
+                          {isLoadingInterests && <Loader2 className="h-3 w-3 animate-spin" />}
+                        </label>
+                        {isLoadingInterests && audience.interests.length === 0 && (
+                          <p className="mb-1.5 text-[10px] italic text-muted-foreground">
+                            Analyse de l&apos;audience en cours…
+                          </p>
+                        )}
+                        {audience.interests.length > 0 && (
+                          <div className="mb-1.5 flex flex-wrap gap-1">
+                            {audience.interests.map((interest) => (
+                              <span
+                                key={interest}
+                                className="inline-flex items-center gap-1 rounded-full border border-border bg-muted/40 px-2 py-0.5 text-xs"
+                              >
+                                {interest}
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setAudience((a) => ({
+                                      ...a,
+                                      interests: a.interests.filter((x) => x !== interest),
+                                    }))
+                                  }
+                                  className="text-muted-foreground hover:text-foreground"
+                                >
+                                  ×
+                                </button>
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        <input
+                          type="text"
+                          value={interestInput}
+                          onChange={(e) => setInterestInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if ((e.key === "Enter" || e.key === ",") && interestInput.trim()) {
+                              e.preventDefault();
+                              const val = interestInput.trim().replace(/,$/, "");
+                              if (val && !audience.interests.includes(val)) {
+                                setAudience((a) => ({ ...a, interests: [...a.interests, val] }));
+                              }
+                              setInterestInput("");
+                            }
+                          }}
+                          placeholder="fitness, lifestyle… (Entrée pour ajouter)"
+                          className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-primary/30"
+                        />
+                      </div>
+                    </>
+                  )}
                 </CardContent>
               </Card>
 

@@ -1,14 +1,35 @@
 "use client";
 
-import { useState } from "react";
-import { Video, Loader2, AlertTriangle, TrendingDown, Zap, Lock, CheckCircle2 } from "lucide-react";
+import { useState, useMemo, useCallback } from "react";
+import {
+  Video,
+  Loader2,
+  AlertTriangle,
+  TrendingDown,
+  Zap,
+  Lock,
+  CheckCircle2,
+  Lightbulb,
+  Copy,
+  Check,
+  Users,
+  Target,
+} from "lucide-react";
 import { Header } from "@/components/layout/Header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useInstagramData } from "@/hooks/useInstagramData";
-import type { InstagramPost, SkipRateInsights, SkipRateAnalysisResponse } from "@/types/instagram";
+import type {
+  InstagramPost,
+  SkipRateInsights,
+  SkipRateAnalysisResponse,
+  ReelIdea,
+  ReelIdeasResponse,
+} from "@/types/instagram";
 import { useT } from "@/lib/i18n";
 import { saveReelsCaptionContext } from "@/lib/content-prompt-context-store";
+import { computeOptimalSlots } from "@/lib/slot-analyzer";
+import { OptimalSlotsWidget } from "@/components/creator/OptimalSlotsWidget";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -181,6 +202,69 @@ export default function ReelsPage() {
 
   const isApiConnected = typeof window !== "undefined" && !!localStorage.getItem("ig_access_token");
 
+  const optimalSlots = useMemo(
+    () => (data?.metrics ? computeOptimalSlots(data.metrics) : []),
+    [data?.metrics]
+  );
+
+  // ── Reel ideas generator ──────────────────────────────────────────────────
+  const [reelIdea, setReelIdea] = useState("");
+  const [reelIdeas, setReelIdeas] = useState<ReelIdea[]>([]);
+  const [trendingTopics, setTrendingTopics] = useState<string[]>([]);
+  const [isGeneratingIdeas, setIsGeneratingIdeas] = useState(false);
+  const [ideasError, setIdeasError] = useState("");
+  const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
+
+  const handleGenerateIdeas = useCallback(async () => {
+    if (!reelIdea.trim()) return;
+    setIsGeneratingIdeas(true);
+    setIdeasError("");
+    setReelIdeas([]);
+    setTrendingTopics([]);
+    try {
+      const res = await fetch("/api/reels/ideas", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          idea: reelIdea,
+          profile: {
+            username: data?.profile?.username,
+            followerCount: data?.profile?.followerCount,
+            bio: data?.profile?.bio,
+          },
+          recentCaptions: data?.posts
+            ?.filter((p) => p.mediaType === "REEL" && p.caption.trim().length > 0)
+            .slice(0, 10)
+            .map((p) => p.caption),
+          audienceInsights: data?.audienceInsights
+            ? {
+                topCountries: data.audienceInsights.topCountries,
+                ageGroups: data.audienceInsights.ageGroups,
+                genderSplit: data.audienceInsights.genderSplit,
+              }
+            : undefined,
+        }),
+      });
+      const json: ReelIdeasResponse = await res.json();
+      if (json.success && json.ideas) {
+        setReelIdeas(json.ideas);
+        setTrendingTopics(json.trendingTopics ?? []);
+      } else {
+        setIdeasError(json.error ?? "Erreur lors de la génération");
+      }
+    } catch {
+      setIdeasError("Erreur réseau");
+    } finally {
+      setIsGeneratingIdeas(false);
+    }
+  }, [reelIdea, data]);
+
+  const copyCaption = (text: string, idx: number) => {
+    navigator.clipboard.writeText(text);
+    setCopiedIdx(idx);
+    setTimeout(() => setCopiedIdx(null), 2000);
+  };
+
   const reels = (data?.posts ?? [])
     .filter((p) => p.mediaType === "REEL")
     .sort((a, b) => {
@@ -338,6 +422,9 @@ export default function ReelsPage() {
           </div>
         )}
 
+        {/* ── Optimal slots widget ── */}
+        {optimalSlots.length > 0 && <OptimalSlotsWidget slots={optimalSlots} contentType="reel" />}
+
         {/* Reels Table */}
         {reels.length > 0 ? (
           <ReelsTable reels={reels} med={med} t={t} />
@@ -347,6 +434,138 @@ export default function ReelsPage() {
             <p className="text-sm text-muted-foreground">{t("skiprate.no_reels")}</p>
           </div>
         ) : null}
+
+        {/* ── Reel Ideas Generator ── */}
+        <div className="space-y-4 rounded-2xl border border-border bg-card p-5">
+          <div className="flex items-center gap-2">
+            <Lightbulb className="h-4 w-4 text-amber-400" />
+            <h2 className="text-sm font-semibold">Générateur d'idées de réels</h2>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Soumets une idée de réel et l'IA génère des captions ciblant ton audience actuelle ET
+            l'audience la plus réactive, en s'appuyant sur les tendances actuelles de ta niche.
+          </p>
+
+          <div className="flex gap-2">
+            <textarea
+              value={reelIdea}
+              onChange={(e) => setReelIdea(e.target.value)}
+              placeholder="Ex: Mes 3 astuces pour voyager léger en carry-on uniquement..."
+              rows={2}
+              className="flex-1 resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/30"
+            />
+            <button
+              onClick={handleGenerateIdeas}
+              disabled={isGeneratingIdeas || !reelIdea.trim()}
+              className="flex shrink-0 items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+            >
+              {isGeneratingIdeas ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Zap className="h-4 w-4" />
+              )}
+              {isGeneratingIdeas ? "Génération..." : "Générer"}
+            </button>
+          </div>
+
+          {ideasError && <p className="text-xs text-red-400">{ideasError}</p>}
+
+          {/* Trending topics */}
+          {trendingTopics.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Tendances dans ta niche :
+              </span>
+              {trendingTopics.map((topic, i) => (
+                <span
+                  key={i}
+                  className="rounded-full border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[10px] font-medium text-amber-400"
+                >
+                  {topic}
+                </span>
+              ))}
+            </div>
+          )}
+
+          {/* Ideas grouped by audience */}
+          {reelIdeas.length > 0 && (
+            <div className="grid gap-4 sm:grid-cols-2">
+              {/* Mon audience */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-violet-400">
+                  <Users className="h-3.5 w-3.5" />
+                  Mon audience
+                </div>
+                {reelIdeas
+                  .filter((idea) => idea.targetMode === "my_audience")
+                  .map((idea, idx) => (
+                    <div
+                      key={idx}
+                      className="space-y-2 rounded-lg border border-violet-500/20 bg-violet-500/5 p-3"
+                    >
+                      <p className="text-[10px] font-medium italic text-violet-300">
+                        🎬 Hook : {idea.hook}
+                      </p>
+                      <p className="whitespace-pre-wrap text-xs leading-relaxed">{idea.caption}</p>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <button
+                          onClick={() => copyCaption(idea.caption, idx)}
+                          className="flex items-center gap-1 rounded-md border border-border px-2 py-0.5 text-[10px] text-muted-foreground hover:text-foreground"
+                        >
+                          {copiedIdx === idx ? (
+                            <Check className="h-2.5 w-2.5 text-emerald-400" />
+                          ) : (
+                            <Copy className="h-2.5 w-2.5" />
+                          )}
+                          {copiedIdx === idx ? "Copié !" : "Copier"}
+                        </button>
+                        <span className="text-[10px] text-muted-foreground">
+                          {idea.audienceDescription}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+
+              {/* Audience optimisée */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-400">
+                  <Target className="h-3.5 w-3.5" />
+                  Audience optimisée
+                </div>
+                {reelIdeas
+                  .filter((idea) => idea.targetMode === "optimized")
+                  .map((idea, idx) => (
+                    <div
+                      key={idx}
+                      className="space-y-2 rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3"
+                    >
+                      <p className="text-[10px] font-medium italic text-emerald-300">
+                        🎬 Hook : {idea.hook}
+                      </p>
+                      <p className="whitespace-pre-wrap text-xs leading-relaxed">{idea.caption}</p>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <button
+                          onClick={() => copyCaption(idea.caption, 100 + idx)}
+                          className="flex items-center gap-1 rounded-md border border-border px-2 py-0.5 text-[10px] text-muted-foreground hover:text-foreground"
+                        >
+                          {copiedIdx === 100 + idx ? (
+                            <Check className="h-2.5 w-2.5 text-emerald-400" />
+                          ) : (
+                            <Copy className="h-2.5 w-2.5" />
+                          )}
+                          {copiedIdx === 100 + idx ? "Copié !" : "Copier"}
+                        </button>
+                        <span className="text-[10px] text-muted-foreground">
+                          {idea.audienceDescription}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          )}
+        </div>
       </main>
     </div>
   );

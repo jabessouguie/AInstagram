@@ -14,13 +14,19 @@ export interface CollabMatch {
   instagramHandle?: string;
   websiteHint?: string;
   potentialRevenue?: string;
-  contactEmail?: string; // known or probable contact email
+  contactEmail?: string;
+  /** Relevance score 1–10 (10 = most relevant). Used for client-side sorting. */
+  relevanceScore?: number;
 }
 
 export interface CollabFinderRequest {
   location: string;
   interests: string[];
   profile: Partial<InstagramProfile>;
+  /** Names of collabs to avoid re-suggesting (already contacted or not interested) */
+  excludeNames?: string[];
+  /** How many results to return (default 15, no upper limit) */
+  count?: number;
 }
 
 export interface CollabFinderResponse {
@@ -32,7 +38,8 @@ export interface CollabFinderResponse {
 export async function POST(request: Request): Promise<NextResponse<CollabFinderResponse>> {
   try {
     const body: CollabFinderRequest = await request.json();
-    const { location, interests, profile } = body;
+    const { location, interests, profile, excludeNames = [], count = 15 } = body;
+    const n = Math.max(1, Math.min(count, 100)); // cap at 100 for sanity
 
     if (!location || !interests?.length) {
       return NextResponse.json(
@@ -70,17 +77,21 @@ Un créateur Instagram cherche des opportunités de collaboration concrètes et 
 - Centres d'intérêt / niche: ${interests.join(", ")}
 
 ### Ta mission
-Identifie exactement 6 opportunités de collaboration **réalistes et adaptées à son profil** dans ou autour de "${location}".
+Identifie exactement ${n} opportunités de collaboration **réalistes et adaptées à son profil** dans ou autour de "${location}". Tu dois faire une recherche approfondie et variée — pas les premières idées qui viennent.
 
 Règles importantes :
 1. Calibre les suggestions au niveau du créateur — une suggestion irréaliste (ex: Nike pour un profil à 1 200 abonnés) est inutile.
 2. Déduis sa niche principale depuis sa bio et ses centres d'intérêt, puis cherche des partenaires dans cette niche.
-3. Mélange les types : marques locales indépendantes, créateurs complémentaires dans la même niche, événements locaux, médias/blogs locaux.
+3. Mélange les types : marques locales indépendantes, créateurs complémentaires dans la même niche, événements locaux, médias/blogs locaux, boutiques indépendantes, agences, associations professionnelles.
 4. Pour les marques, donne des noms réalistes et vérifiables (marques existantes, pas fictives).
-5. Le potentialRevenue doit être cohérent avec la taille du compte et le marché local.
-6. La raison doit expliquer concrètement pourquoi leurs audiences se recoupent.
+${excludeNames.length ? `5. **IMPORTANT** — N'inclus ABSOLUMENT PAS ces entités déjà contactées ou ignorées : ${excludeNames.join(", ")}. Cherche des noms entièrement différents.` : ""}
+6. Le potentialRevenue doit être cohérent avec la taille du compte et le marché local.
+7. La raison doit expliquer concrètement pourquoi leurs audiences se recoupent.
+8. Les instagramHandle doivent être des handles Instagram réels et vérifiables quand tu les connais.
+9. Les contactEmail doivent être des emails probables et réalistes (ex: contact@brand.com, hello@brand.fr).
+10. **relevanceScore** : attribue un score de 1 à 10 (10 = opportunité la plus pertinente et réaliste pour CE profil). Trie les résultats du plus pertinent (10) au moins pertinent (1).
 
-Réponds UNIQUEMENT avec ce JSON (sans markdown) :
+Réponds UNIQUEMENT avec ce JSON (sans markdown) — le tableau collabs doit contenir exactement ${n} éléments, triés par relevanceScore décroissant :
 {
   "summary": "Résumé en 2 phrases des opportunités identifiées, mention du tier du créateur",
   "collabs": [
@@ -94,14 +105,20 @@ Réponds UNIQUEMENT avec ce JSON (sans markdown) :
       "instagramHandle": "@handle Instagram si connu",
       "websiteHint": "nom de domaine probable ou terme de recherche",
       "potentialRevenue": "fourchette réaliste selon le tier (ex: échange produit, 50-150€, 300-800€)",
-      "contactEmail": "email de contact si connu ou pattern probable (ex: contact@brand.com, partenariats@brand.fr)"
+      "contactEmail": "email de contact si connu ou pattern probable (ex: contact@brand.com, partenariats@brand.fr)",
+      "relevanceScore": 9
     }
   ]
 }`;
 
     const raw = await generateText(prompt, { model: GEMINI_PRO });
     const rawClean = stripJsonFences(raw);
-    const parsed = JSON.parse(rawClean);
+    const parsed = JSON.parse(rawClean) as { collabs: CollabMatch[]; summary: string };
+
+    // Ensure sorted by relevanceScore descending (in case AI didn't)
+    if (parsed.collabs) {
+      parsed.collabs.sort((a, b) => (b.relevanceScore ?? 0) - (a.relevanceScore ?? 0));
+    }
 
     return NextResponse.json({ success: true, data: parsed });
   } catch (error) {

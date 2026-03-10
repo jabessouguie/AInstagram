@@ -144,18 +144,17 @@ describe("generateMediaKitHTML", () => {
     // minimal config
     const minimalConfig = {
       ...defaultMediaKitConfig,
+      lang: "fr" as const,
       services: [],
       contactEmail: "",
       ratePerPost: undefined,
       profilePicUrl: undefined,
-      bannerImageUrl: "http://banner.jpg",
       displayName: "Display Name",
     };
 
     const minimalHtml = generateMediaKitHTML(minimalAnalytics, minimalConfig);
-    expect(minimalHtml).toContain("Données non disponibles");
+    expect(minimalHtml).toContain("Aucune donnée disponible");
     expect(minimalHtml).toContain("Display Name");
-    expect(minimalHtml).toContain("http://banner.jpg");
     // it will render the profile username initial when no picture
     expect(minimalHtml).toContain("T"); // "Testcreator" first letter
   });

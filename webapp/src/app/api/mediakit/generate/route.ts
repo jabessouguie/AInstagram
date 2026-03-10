@@ -15,6 +15,8 @@ export interface MediaKitGenerateRequest {
   posts?: Array<{ caption: string }>;
   feedback?: string;
   model?: string;
+  /** Optional brand/partner context to adapt tagline and services to a specific collab target */
+  collabContext?: string;
 }
 
 export interface MediaKitGenerateResponse {
@@ -39,6 +41,7 @@ export async function POST(request: Request): Promise<NextResponse<MediaKitGener
       topCountries,
       posts,
       feedback,
+      collabContext,
     } = body;
 
     if (!isAIConfigured()) {
@@ -98,7 +101,7 @@ Réponds UNIQUEMENT avec ce JSON (sans markdown) :
   "tagline": "Tagline percutante ici",
   "services": ["Service 1", "Service 2", "Service 3", "Service 4", "Service 5"],
   "ratePerPost": "XXX€"
-}${feedback ? `\n\nRetours utilisateur sur la version précédente : ${feedback}` : ""}`;
+}${collabContext ? `\n\nContexte de collaboration : Adapte la tagline et les services proposés pour une demande de partenariat avec ${collabContext}. La tagline doit résonner avec cette marque/niche spécifique. Les services listés doivent être pertinents pour ce type de collaboration.` : ""}${feedback ? `\n\nRetours utilisateur sur la version précédente : ${feedback}` : ""}`;
 
     const raw = await generateText(prompt, { model: body.model });
     const text = stripJsonFences(raw);

@@ -29,9 +29,12 @@ import {
   type MediaKitConfig,
 } from "@/lib/mediakit-generator";
 import { loadBrandSettings } from "@/lib/brand-settings-store";
+import { loadUserProfile, getDisplayName } from "@/lib/user-profile-store";
+import { loadMediaKitConfig, saveMediaKitConfig } from "@/lib/mediakit-config-store";
 import { AIFeedbackBar } from "@/components/ui/ai-feedback-bar";
 import { useAnimatedStatus } from "@/hooks/useAnimatedStatus";
 import { useT } from "@/lib/i18n";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 // ─── Google Fonts ─────────────────────────────────────────────────────────────
 
@@ -127,6 +130,7 @@ function LabeledInput({
 export default function MediaKitPage() {
   const { data, isLoading } = useInstagramData();
   const t = useT();
+  const { lang } = useLanguage();
   const MEDIAKIT_GEN_STATUSES = [
     t("mediakit.gen.status.analyzeNiche"),
     t("mediakit.gen.status.positioning"),
@@ -135,7 +139,8 @@ export default function MediaKitPage() {
     t("mediakit.gen.status.finalise"),
   ];
   const [aiModel, setAiModel] = useState("gemini-2.5-flash");
-  const [config, setConfig] = useState<MediaKitConfig>(defaultMediaKitConfig);
+  const [targetBrand, setTargetBrand] = useState("");
+  const [config, setConfig] = useState<MediaKitConfig>(() => loadMediaKitConfig());
   const [newService, setNewService] = useState("");
   const [activeTab, setActiveTab] = useState<"edit" | "preview">("edit");
   const [shareId] = useState(() => Math.random().toString(36).substring(2, 10));
@@ -144,11 +149,12 @@ export default function MediaKitPage() {
   const generatingStatus = useAnimatedStatus(isGenerating, MEDIAKIT_GEN_STATUSES);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
-  const bannerInputRef = useRef<HTMLInputElement>(null);
 
-  // Initialise config from brand settings + real profile data
+  // Initialise config from brand settings + user profile + real profile data
   useEffect(() => {
     const brand = loadBrandSettings();
+    const userProfile = loadUserProfile();
+    const displayName = getDisplayName(userProfile);
     setConfig((c) => ({
       ...c,
       primaryColor: brand.primaryColor,
@@ -156,6 +162,9 @@ export default function MediaKitPage() {
       accentColor: brand.accentColor,
       fontTitle: brand.fontTitle,
       fontBody: brand.fontBody,
+      ...(userProfile.email && { contactEmail: userProfile.email }),
+      ...(displayName && { displayName }),
+      ...(userProfile.profilePhotoBase64 && { profilePicUrl: userProfile.profilePhotoBase64 }),
     }));
   }, []);
 
@@ -163,20 +172,31 @@ export default function MediaKitPage() {
     if (data?.profile) {
       setConfig((c) => ({
         ...c,
-        contactEmail: data.profile.website?.includes("@")
-          ? data.profile.website
-          : `contact@${data.profile.username}.com`,
-        tagline: data.profile.bio?.split("\n")[0] ?? c.tagline,
-        profilePicUrl: data.profile.profilePicUrl ?? c.profilePicUrl,
+        // Only pre-fill from profile if not already customised
+        contactEmail:
+          c.contactEmail ||
+          (data.profile.website?.includes("@")
+            ? data.profile.website
+            : `contact@${data.profile.username}.com`),
+        tagline:
+          c.tagline !== defaultMediaKitConfig.tagline
+            ? c.tagline
+            : (data.profile.bio?.split("\n")[0] ?? c.tagline),
+        profilePicUrl: c.profilePicUrl || data.profile.profilePicUrl,
         displayName: c.displayName || data.profile.fullName || data.profile.username,
       }));
     }
   }, [data?.profile]);
 
+  // Auto-save config to localStorage on every change
+  useEffect(() => {
+    saveMediaKitConfig(config);
+  }, [config]);
+
   const html = useMemo(() => {
     if (!data) return "";
-    return generateMediaKitHTML(data, config);
-  }, [data, config]);
+    return generateMediaKitHTML(data, { ...config, lang });
+  }, [data, config, lang]);
 
   // ── AI generation ─────────────────────────────────────────────────────────
 
@@ -213,6 +233,9 @@ export default function MediaKitPage() {
             .map((p) => ({ caption: p.caption })),
           feedback,
           model: aiModel,
+          ...(targetBrand.trim() && {
+            collabContext: `Adapt the tagline and services for a partnership pitch to ${targetBrand.trim()}`,
+          }),
         };
 
         const res = await fetch("/api/mediakit/generate", {
@@ -239,7 +262,7 @@ export default function MediaKitPage() {
         setIsGenerating(false);
       }
     },
-    [data, config.contactEmail, isGenerating, aiModel]
+    [data, config.contactEmail, isGenerating, aiModel, targetBrand]
   );
 
   const handleDownloadHTML = useCallback(() => {
@@ -252,10 +275,16 @@ export default function MediaKitPage() {
   }, [html, data]);
 
   const handlePrintPDF = useCallback(() => {
-    if (iframeRef.current?.contentWindow) {
-      iframeRef.current.contentWindow.print();
-    }
-  }, []);
+    // Inject an auto-print script and open in a new tab so fonts load before printing
+    const printHtml = html.replace(
+      "</body>",
+      "<script>window.addEventListener('load',()=>setTimeout(window.print,600))</script></body>"
+    );
+    const blob = new Blob([printHtml], { type: "text/html" });
+    const url = URL.createObjectURL(blob);
+    window.open(url, "_blank");
+    setTimeout(() => URL.revokeObjectURL(url), 15_000);
+  }, [html]);
 
   const handleShare = useCallback(() => {
     const shareUrl = `${window.location.origin}/mediakit/${shareId}`;
@@ -279,6 +308,24 @@ export default function MediaKitPage() {
     setConfig((c) => ({ ...c, services: c.services.filter((_, idx) => idx !== i) }));
   }, []);
 
+  const [newPartnership, setNewPartnership] = useState("");
+
+  const addPartnership = useCallback(() => {
+    if (!newPartnership.trim()) return;
+    setConfig((c) => ({
+      ...c,
+      pastPartnerships: [...(c.pastPartnerships ?? []), newPartnership.trim()],
+    }));
+    setNewPartnership("");
+  }, [newPartnership]);
+
+  const removePartnership = useCallback((i: number) => {
+    setConfig((c) => ({
+      ...c,
+      pastPartnerships: (c.pastPartnerships ?? []).filter((_, idx) => idx !== i),
+    }));
+  }, []);
+
   // ── Photo upload ──────────────────────────────────────────────────────────
 
   const handlePhotoUpload = useCallback(
@@ -289,20 +336,6 @@ export default function MediaKitPage() {
       reader.onload = (e) => {
         const dataUrl = e.target?.result as string;
         if (dataUrl) updateConfig("profilePicUrl", dataUrl);
-      };
-      reader.readAsDataURL(file);
-    },
-    [updateConfig]
-  );
-
-  const handleBannerUpload = useCallback(
-    (files: FileList | null) => {
-      if (!files || files.length === 0) return;
-      const file = files[0];
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const dataUrl = e.target?.result as string;
-        if (dataUrl) updateConfig("bannerImageUrl", dataUrl);
       };
       reader.readAsDataURL(file);
     },
@@ -494,6 +527,43 @@ export default function MediaKitPage() {
                     onChange={(v) => updateConfig("accentColor", v)}
                   />
                 </div>
+                {/* Hero background */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    Hero background
+                  </label>
+                  <div className="grid grid-cols-4 gap-1.5">
+                    {(
+                      [
+                        [
+                          "gradient",
+                          "Gradient",
+                          `linear-gradient(135deg, ${config.primaryColor}, ${config.secondaryColor})`,
+                        ],
+                        ["primary", "Primary", config.primaryColor],
+                        ["secondary", "Secondary", config.secondaryColor],
+                        ["accent", "Accent", config.accentColor],
+                      ] as const
+                    ).map(([val, label, bg]) => {
+                      const isActive = (config.heroBg ?? "gradient") === val;
+                      return (
+                        <button
+                          key={val}
+                          title={label}
+                          onClick={() => updateConfig("heroBg", val as MediaKitConfig["heroBg"])}
+                          className={`relative h-9 rounded-xl border-2 transition-all ${isActive ? "scale-110 border-white shadow-md" : "border-transparent opacity-75 hover:opacity-100"}`}
+                          style={{ background: bg }}
+                        >
+                          {isActive && (
+                            <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white drop-shadow">
+                              ✓
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
               </CardContent>
             </Card>
 
@@ -584,49 +654,21 @@ export default function MediaKitPage() {
                     )}
                   </div>
                 </div>
-                {/* Banner image */}
+                {/* Target brand for AI adaptation */}
                 <div className="space-y-1.5">
-                  <label className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                    <ImageIcon className="h-3 w-3" />
-                    {t("mediakit.identity.banner")}
+                  <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                    Target brand{" "}
+                    <span className="normal-case text-muted-foreground/60">
+                      (optional — adapts AI content)
+                    </span>
                   </label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      ref={bannerInputRef}
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={(e) => handleBannerUpload(e.target.files)}
-                    />
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full text-xs"
-                      onClick={() => bannerInputRef.current?.click()}
-                    >
-                      <Upload className="h-3 w-3" />
-                      {t("mediakit.identity.uploadBanner")}
-                    </Button>
-                    {config.bannerImageUrl && (
-                      <button
-                        onClick={() =>
-                          updateConfig("bannerImageUrl", undefined as unknown as string)
-                        }
-                        className="text-xs text-muted-foreground hover:text-destructive"
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </button>
-                    )}
-                  </div>
-                  {config.bannerImageUrl && (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={config.bannerImageUrl}
-                      alt="Banner"
-                      className="h-16 w-full rounded-md border border-border object-cover"
-                      onError={(e) => (e.currentTarget.style.display = "none")}
-                    />
-                  )}
+                  <input
+                    type="text"
+                    value={targetBrand}
+                    onChange={(e) => setTargetBrand(e.target.value)}
+                    placeholder="e.g. Nike, Vogue, Air France…"
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/30"
+                  />
                 </div>
                 <LabeledInput
                   label={t("mediakit.identity.tagline")}
@@ -688,6 +730,40 @@ export default function MediaKitPage() {
                     className="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/30"
                   />
                   <Button size="sm" onClick={addService}>
+                    <Plus className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+            {/* Past Partnerships */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-semibold">Partenariats passés</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex flex-wrap gap-2">
+                  {(config.pastPartnerships ?? []).map((p, i) => (
+                    <Badge key={i} variant="secondary" className="gap-1 pr-1">
+                      {p}
+                      <button
+                        onClick={() => removePartnership(i)}
+                        className="ml-0.5 hover:text-red-400"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={newPartnership}
+                    onChange={(e) => setNewPartnership(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && addPartnership()}
+                    placeholder="ex: Nike, Le Monde, Air France…"
+                    className="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/30"
+                  />
+                  <Button size="sm" onClick={addPartnership}>
                     <Plus className="h-3.5 w-3.5" />
                   </Button>
                 </div>

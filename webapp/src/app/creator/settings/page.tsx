@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Palette, Type, Check, RotateCcw } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Palette, Type, Check, RotateCcw, User, Camera } from "lucide-react";
 import { Header } from "@/components/layout/Header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,12 @@ import {
   DEFAULT_BRAND_SETTINGS,
   type BrandSettings,
 } from "@/lib/brand-settings-store";
+import {
+  loadUserProfile,
+  saveUserProfile,
+  DEFAULT_USER_PROFILE,
+  type UserProfile,
+} from "@/lib/user-profile-store";
 
 // Popular Google Fonts for creator content
 const FONT_OPTIONS = [
@@ -124,21 +130,58 @@ function PalettePreview({ settings }: { settings: BrandSettings }) {
   );
 }
 
+// ─── Text input field ─────────────────────────────────────────────────────────
+
+function TextInput({
+  label,
+  value,
+  onChange,
+  placeholder,
+  type = "text",
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  type?: string;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <label className="text-xs font-medium text-muted-foreground">{label}</label>
+      <input
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+      />
+    </div>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function SettingsPage() {
   const t = useT();
   const { data: instagramData } = useInstagramData();
   const [settings, setSettings] = useState<BrandSettings>(DEFAULT_BRAND_SETTINGS);
+  const [profile, setProfile] = useState<UserProfile>(DEFAULT_USER_PROFILE);
   const [saved, setSaved] = useState(false);
+  const [profileSaved, setProfileSaved] = useState(false);
+  const photoInputRef = useRef<HTMLInputElement>(null);
 
   // Load from localStorage on mount
   useEffect(() => {
     setSettings(loadBrandSettings());
+    setProfile(loadUserProfile());
   }, []);
 
   const update = (key: keyof BrandSettings, value: string) => {
     setSettings((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const updateProfile = (key: keyof UserProfile, value: string) => {
+    setProfile((prev) => ({ ...prev, [key]: value }));
   };
 
   const handleSave = () => {
@@ -147,8 +190,28 @@ export default function SettingsPage() {
     setTimeout(() => setSaved(false), 2500);
   };
 
+  const handleSaveProfile = () => {
+    saveUserProfile(profile);
+    setProfileSaved(true);
+    setTimeout(() => setProfileSaved(false), 2500);
+  };
+
   const handleReset = () => {
     setSettings(DEFAULT_BRAND_SETTINGS);
+  };
+
+  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      alert("Photo trop lourde (max 2 Mo)");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      updateProfile("profilePhotoBase64", reader.result as string);
+    };
+    reader.readAsDataURL(file);
   };
 
   return (
@@ -165,6 +228,106 @@ export default function SettingsPage() {
         </div>
 
         <div className="space-y-6">
+          {/* ── Profil personnel ── */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <User className="h-4 w-4 text-primary" />
+                Profil personnel
+              </CardTitle>
+              <CardDescription>
+                Ces informations seront utilisées dans votre media kit et vos emails de
+                collaboration.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              {/* Avatar */}
+              <div className="flex items-center gap-4">
+                <div
+                  className="relative h-16 w-16 cursor-pointer overflow-hidden rounded-full border-2 border-border bg-muted"
+                  onClick={() => photoInputRef.current?.click()}
+                >
+                  {profile.profilePhotoBase64 ? (
+                    <img
+                      src={profile.profilePhotoBase64}
+                      alt="Avatar"
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center">
+                      <User className="h-7 w-7 text-muted-foreground" />
+                    </div>
+                  )}
+                  <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/40 opacity-0 transition-opacity hover:opacity-100">
+                    <Camera className="h-5 w-5 text-white" />
+                  </div>
+                </div>
+                <div>
+                  <button
+                    onClick={() => photoInputRef.current?.click()}
+                    className="text-sm font-medium text-primary hover:underline"
+                  >
+                    Changer la photo
+                  </button>
+                  <p className="text-xs text-muted-foreground">JPG, PNG, WebP — max 2 Mo</p>
+                </div>
+                <input
+                  ref={photoInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handlePhotoChange}
+                />
+              </div>
+
+              {/* Name */}
+              <div className="grid grid-cols-2 gap-3">
+                <TextInput
+                  label="Prénom"
+                  value={profile.firstName}
+                  onChange={(v) => updateProfile("firstName", v)}
+                  placeholder="Jean"
+                />
+                <TextInput
+                  label="Nom"
+                  value={profile.lastName}
+                  onChange={(v) => updateProfile("lastName", v)}
+                  placeholder="Dupont"
+                />
+              </div>
+
+              {/* Contact */}
+              <TextInput
+                label="Email de contact"
+                value={profile.email}
+                onChange={(v) => updateProfile("email", v)}
+                placeholder="jean@example.com"
+                type="email"
+              />
+              <TextInput
+                label="Téléphone"
+                value={profile.phone}
+                onChange={(v) => updateProfile("phone", v)}
+                placeholder="+33 6 12 34 56 78"
+                type="tel"
+              />
+
+              {/* Save profile */}
+              <div className="flex items-center gap-3 pt-1">
+                <Button onClick={handleSaveProfile} size="sm" className="gap-2">
+                  {profileSaved ? (
+                    <>
+                      <Check className="h-4 w-4" />
+                      Profil sauvegardé
+                    </>
+                  ) : (
+                    "Sauvegarder le profil"
+                  )}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Fonts */}
           <Card>
             <CardHeader>
@@ -231,7 +394,7 @@ export default function SettingsPage() {
             </CardContent>
           </Card>
 
-          {/* Actions */}
+          {/* Brand settings actions */}
           <div className="flex items-center gap-3">
             <Button onClick={handleSave} className="gap-2">
               {saved ? (

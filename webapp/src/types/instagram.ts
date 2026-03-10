@@ -269,9 +269,15 @@ export interface CarouselFonts {
 
 export interface CarouselAudience {
   gender: "all" | "female" | "male";
-  region: string; // e.g. "France", "Côte d'Ivoire"
-  interests: string; // comma-separated
-  ageRange?: string; // e.g. "18-24", "25-34", "all"
+  regions: string[]; // e.g. ["France", "Belgique"]
+  interests: string[]; // e.g. ["fitness", "lifestyle"]
+  ageRanges: string[]; // e.g. ["18-24", "25-34"] — empty = all ages
+  /** Audience targeting mode:
+   * - "custom": manual input (default)
+   * - "my_audience": auto-filled from real analytics
+   * - "optimized": AI determines best audience for the post topic
+   */
+  mode?: "custom" | "my_audience" | "optimized";
 }
 
 export interface CarouselSlideContent {
@@ -336,6 +342,43 @@ export interface ReelAudioRequest {
 export interface ReelAudioResponse {
   success: boolean;
   audio?: string; // base64 data URL "data:audio/wav;base64,..."
+  error?: string;
+}
+
+// ============================================================
+// Reel Ideas Generator Types
+// ============================================================
+
+export interface ReelIdea {
+  caption: string;
+  /** Accroche pour les 3 premières secondes */
+  hook: string;
+  /** "my_audience" = audience actuelle du créateur | "optimized" = audience la plus réactive */
+  targetMode: "my_audience" | "optimized";
+  /** Description de l'audience ciblée */
+  audienceDescription: string;
+  tags: string[];
+}
+
+export interface ReelIdeasRequest {
+  idea: string;
+  profile: {
+    username?: string;
+    followerCount?: number;
+    bio?: string;
+  };
+  recentCaptions?: string[];
+  audienceInsights?: {
+    topCountries?: Record<string, number>;
+    ageGroups?: Record<string, number>;
+    genderSplit?: { male: number; female: number };
+  };
+}
+
+export interface ReelIdeasResponse {
+  success: boolean;
+  ideas?: ReelIdea[];
+  trendingTopics?: string[];
   error?: string;
 }
 

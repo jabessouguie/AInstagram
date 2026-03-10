@@ -17,14 +17,14 @@ export interface MediaKitTheme {
 
 export const MEDIAKIT_THEMES: Record<string, MediaKitTheme> = {
   forest: { name: "Forest", primary: "#1f3d3b", secondary: "#495b29", accent: "#ffd953" },
-  elegant: { name: "Élégant", primary: "#1a1a2e", secondary: "#16213e", accent: "#e94560" },
+  elegant: { name: "Elegant", primary: "#1a1a2e", secondary: "#16213e", accent: "#e94560" },
   bold: { name: "Bold", primary: "#ff6b35", secondary: "#c0392b", accent: "#f1c40f" },
   minimal: { name: "Minimal", primary: "#2d3436", secondary: "#636e72", accent: "#00b894" },
-  ocean: { name: "Océan", primary: "#0077b6", secondary: "#00b4d8", accent: "#90e0ef" },
+  ocean: { name: "Ocean", primary: "#0077b6", secondary: "#00b4d8", accent: "#90e0ef" },
   sunset: { name: "Sunset", primary: "#f72585", secondary: "#7209b7", accent: "#ffd60a" },
   nordic: { name: "Nordic", primary: "#2b2d42", secondary: "#8d99ae", accent: "#ef233c" },
   warm: { name: "Warm", primary: "#6d4c41", secondary: "#a1887f", accent: "#ffb300" },
-  neon: { name: "Néon", primary: "#0d0221", secondary: "#0a014f", accent: "#e500a4" },
+  neon: { name: "Neon", primary: "#0d0221", secondary: "#0a014f", accent: "#e500a4" },
   pastel: { name: "Pastel", primary: "#457b9d", secondary: "#a8dadc", accent: "#e63946" },
 };
 
@@ -38,12 +38,17 @@ export interface MediaKitConfig {
   fontBody: string;
   tagline: string;
   services: string[];
+  /** Past brand/media partnerships to showcase (e.g. "Nike", "Le Monde", "Air France") */
+  pastPartnerships?: string[];
   contactEmail: string;
   ratePerPost?: string;
   profilePicUrl?: string;
-  bannerImageUrl?: string;
   displayName?: string;
   theme?: string;
+  /** Hero section background — "gradient" (default) | "primary" | "secondary" | "accent" */
+  heroBg?: "gradient" | "primary" | "secondary" | "accent";
+  /** Language for all text labels in the generated HTML — defaults to "en" */
+  lang?: "en" | "fr";
 }
 
 export const defaultMediaKitConfig: MediaKitConfig = {
@@ -52,11 +57,13 @@ export const defaultMediaKitConfig: MediaKitConfig = {
   accentColor: MEDIAKIT_THEMES.forest.accent,
   fontTitle: "Playfair Display",
   fontBody: "Inter",
-  tagline: "Créateur de contenu passionné",
-  services: ["Posts sponsorisés", "Stories", "Reels", "Placement produit"],
+  tagline: "Passionate content creator",
+  services: ["Sponsored posts", "Stories", "Reels", "Product placement"],
+  pastPartnerships: [],
   contactEmail: "",
   ratePerPost: "",
   theme: "forest",
+  heroBg: "gradient",
 };
 
 // ─── SVG helpers ──────────────────────────────────────────────────────────────
@@ -76,27 +83,27 @@ function svgRing(pct: number, color: string, label: string, size = 100): string 
   const circ = 2 * Math.PI * r;
   const dash = (Math.min(pct, 100) / 100) * circ;
   return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg">
-  <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="8"/>
+  <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="rgba(0,0,0,0.08)" stroke-width="8"/>
   <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${color}" stroke-width="8"
     stroke-dasharray="${dash.toFixed(1)} ${(circ - dash).toFixed(1)}"
     stroke-dashoffset="${(circ / 4).toFixed(1)}"
     stroke-linecap="round"/>
-  <text x="${cx}" y="${cy - 6}" text-anchor="middle" fill="white" font-size="13" font-weight="800" font-family="inherit">${pct.toFixed(pct < 10 ? 1 : 0)}%</text>
-  <text x="${cx}" y="${cy + 12}" text-anchor="middle" fill="rgba(255,255,255,0.55)" font-size="8" font-family="inherit">${label}</text>
+  <text x="${cx}" y="${cy - 6}" text-anchor="middle" fill="#1a1a2e" font-size="13" font-weight="800" font-family="inherit">${pct.toFixed(pct < 10 ? 1 : 0)}%</text>
+  <text x="${cx}" y="${cy + 12}" text-anchor="middle" fill="rgba(0,0,0,0.45)" font-size="8" font-family="inherit">${label}</text>
 </svg>`;
 }
 
 /**
  * Generates a gender distribution donut chart as an SVG string.
  * @param {number} female Percentage of female followers.
- * @param {number} male Percentage of male followers.
+ * @param _male Percentage of male followers (unused; implied by female).
  * @param {string} primaryColor Main theme color.
  * @param {string} accentColor Accent theme color.
  * @returns {string} SVG string.
  */
 function svgGenderDonut(
   female: number,
-  male: number,
+  _male: number,
   primaryColor: string,
   accentColor: string
 ): string {
@@ -113,7 +120,7 @@ function svgGenderDonut(
     stroke-dasharray="${femaleDash.toFixed(1)} ${(circ - femaleDash).toFixed(1)}"
     stroke-dashoffset="${(circ / 4).toFixed(1)}"
     stroke-linecap="butt"/>
-  <text x="${cx}" y="${cy + 5}" text-anchor="middle" fill="white" font-size="10" font-weight="700" font-family="inherit">♀ ${female.toFixed(0)}%</text>
+  <text x="${cx}" y="${cy + 5}" text-anchor="middle" fill="#1a1a2e" font-size="10" font-weight="700" font-family="inherit">♀ ${female.toFixed(0)}%</text>
 </svg>`;
 }
 
@@ -129,6 +136,75 @@ const ICON = {
   check: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`,
 };
 
+// ─── Labels (fr / en) ─────────────────────────────────────────────────────────
+
+function getLabels(lang: "en" | "fr") {
+  const fr = {
+    followers: "abonnés",
+    engagementRate: "Taux d'engagement",
+    reach: "Portée",
+    impressions: "Impressions",
+    performance: "Performance",
+    keyMetrics: "Indicateurs clés",
+    avgLikes: "Likes moyens",
+    comments: "Commentaires",
+    contentFormats: "Formats de contenu",
+    posts: "publications",
+    noData: "Aucune donnée",
+    noDataAvailable: "Aucune donnée disponible",
+    audience: "Audience",
+    location: "Localisation",
+    demographics: "Démographie",
+    women: "Femmes",
+    men: "Hommes",
+    services: "Services",
+    pastPartnerships: "Partenariats passés",
+    letsWorkTogether: "Travaillons ensemble",
+    ctaSubtitle:
+      "Disponible pour des partenariats, placements produits et créations de contenu sur mesure.",
+    from: "À partir de",
+    perPost: "/ post",
+    startingFrom: "À partir de",
+    sponsoredPost: "post sponsorisé",
+    nonFollowers: "Non-abonnés",
+    dataFooter: "Données de l'export officiel Instagram",
+    generatedWith: "Généré avec",
+  } as const;
+
+  const en = {
+    followers: "followers",
+    engagementRate: "Engagement rate",
+    reach: "Reach",
+    impressions: "Impressions",
+    performance: "Performance",
+    keyMetrics: "Key metrics",
+    avgLikes: "Avg. likes",
+    comments: "Comments",
+    contentFormats: "Content formats",
+    posts: "posts",
+    noData: "No data",
+    noDataAvailable: "No data available",
+    audience: "Audience",
+    location: "Location",
+    demographics: "Demographics",
+    women: "Women",
+    men: "Men",
+    services: "Services",
+    pastPartnerships: "Past Partnerships",
+    letsWorkTogether: "Let's work together",
+    ctaSubtitle: "Available for partnerships, product placements, and custom content creation.",
+    from: "From",
+    perPost: "/ post",
+    startingFrom: "Starting from",
+    sponsoredPost: "sponsored post",
+    nonFollowers: "Non-followers",
+    dataFooter: "Data from official Instagram export",
+    generatedWith: "Generated with",
+  } as const;
+
+  return lang === "fr" ? fr : en;
+}
+
 // ─── Main generator ───────────────────────────────────────────────────────────
 
 /**
@@ -143,6 +219,7 @@ export function generateMediaKitHTML(
   config: MediaKitConfig
 ): string {
   const { profile, metrics, reachInsights, audienceInsights } = analytics;
+  const L = getLabels(config.lang ?? "en");
 
   const fmtNum = (n: number) =>
     n >= 1_000_000
@@ -162,6 +239,14 @@ export function generateMediaKitHTML(
   const secondary = config.secondaryColor;
   const accent = config.accentColor;
   const gradient = `linear-gradient(135deg, ${primary}, ${secondary})`;
+  const heroBgStyle =
+    !config.heroBg || config.heroBg === "gradient"
+      ? gradient
+      : config.heroBg === "primary"
+        ? primary
+        : config.heroBg === "secondary"
+          ? secondary
+          : accent;
   const googleFontsUrl = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(titleFont)}:wght@400;700;800&family=${encodeURIComponent(bodyFont)}:wght@300;400;500;600;700&display=swap`;
 
   // ── Audience data ──
@@ -191,7 +276,7 @@ export function generateMediaKitHTML(
   const erRing = svgRing(engagement, accent, "Engagement");
   const nonFollowerPct = reachInsights?.nonFollowerReachPct ?? 0;
   const nonFollowerRing =
-    nonFollowerPct > 0 ? svgRing(nonFollowerPct, secondary, "Non-abonnés") : "";
+    nonFollowerPct > 0 ? svgRing(nonFollowerPct, secondary, L.nonFollowers) : "";
   const genderDonut = hasGender ? svgGenderDonut(female, male, accent, secondary) : "";
 
   // ── Top cities ──
@@ -202,7 +287,7 @@ export function generateMediaKitHTML(
     : [];
 
   return `<!DOCTYPE html>
-<html lang="fr">
+<html lang="${config.lang ?? "en"}">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -212,8 +297,8 @@ export function generateMediaKitHTML(
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       font-family: '${bodyFont}', sans-serif;
-      background: #080c10;
-      color: #f0f0f5;
+      background: ${primary}12;
+      color: #1a1a2e;
       min-height: 100vh;
       -webkit-font-smoothing: antialiased;
     }
@@ -223,27 +308,18 @@ export function generateMediaKitHTML(
       --primary: ${primary};
       --secondary: ${secondary};
       --accent: ${accent};
-      --card-bg: rgba(255,255,255,0.035);
-      --card-border: rgba(255,255,255,0.07);
-      --text-muted: rgba(255,255,255,0.45);
-      --text-dim: rgba(255,255,255,0.7);
+      --card-bg: #ffffff;
+      --card-border: rgba(0,0,0,0.08);
+      --text-muted: rgba(0,0,0,0.4);
+      --text-dim: rgba(0,0,0,0.65);
     }
 
     /* ── Hero ── */
     .hero {
-      background: ${gradient};
+      background: ${heroBgStyle};
       padding: 0;
       position: relative;
       overflow: hidden;
-    }
-    ${
-      config.bannerImageUrl
-        ? `.hero::before {
-      content:''; position:absolute; inset:0;
-      background:url("${config.bannerImageUrl}") center/cover no-repeat;
-      opacity:0.25; pointer-events:none; z-index:0;
-    }`
-        : ""
     }
     .hero::after {
       content:''; position:absolute; inset:0; pointer-events:none; z-index:0;
@@ -297,16 +373,49 @@ export function generateMediaKitHTML(
       display: grid;
       grid-template-columns: repeat(4, 1fr);
       gap: 16px;
-      margin-top: -32px;
+      margin-top: -28px;
       position: relative; z-index: 2;
     }
+    @media (max-width: 680px) {
+      .stats-section { grid-template-columns: repeat(2, 1fr); margin-top: 0; padding: 16px; }
+      .hero-inner { grid-template-columns: 1fr; text-align: center; }
+    }
+    @media print {
+      @page { size: A4 portrait; margin: 0; }
+      html {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+        font-size: 11px;
+      }
+      body { zoom: 0.55; margin: 0; }
+      .hero::after { display: none; }
+      .hero-inner { padding: 28px 28px; gap: 20px; }
+      .avatar { width: 90px; height: 90px; font-size: 32px; }
+      .hero-info h1 { font-size: 1.8rem; }
+      .hero-tagline { margin-top: 6px; }
+      .hero-badges { margin-top: 8px; }
+      .stats-section { padding: 0 28px; gap: 10px; margin-top: -20px; }
+      .stat-card { padding: 14px 10px; box-shadow: none; border-radius: 12px; }
+      .stat-value { font-size: 1.4rem; }
+      .main { padding: 20px 28px 20px; }
+      .section-head { margin-top: 18px; margin-bottom: 12px; }
+      .card { padding: 14px; border-radius: 14px; }
+      .two-col { gap: 12px; }
+      .cta-section { padding: 28px 24px; margin-top: 20px; border-radius: 16px; }
+      .cta-section h2 { font-size: 1.3rem; }
+      .footer { margin-top: 20px; padding-bottom: 16px; }
+      .services-grid { gap: 6px; }
+      .service-item { padding: 8px 12px; }
+      .partners-grid { gap: 6px; }
+      .partner-item { padding: 6px 14px; }
+    }
     .stat-card {
-      background: #111720;
+      background: #ffffff;
       border: 1px solid var(--card-border);
       border-radius: 18px;
       padding: 24px 18px;
       display: flex; flex-direction: column; align-items: center; text-align: center;
-      box-shadow: 0 8px 32px rgba(0,0,0,0.35);
+      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
       position: relative; overflow: hidden;
     }
     .stat-card::before {
@@ -320,7 +429,7 @@ export function generateMediaKitHTML(
       color: ${accent}; margin-bottom: 12px;
     }
     .stat-value {
-      font-size: 2rem; font-weight: 800; color: white;
+      font-size: 2rem; font-weight: 800; color: #1a1a2e;
       font-family: '${titleFont}', serif; line-height: 1;
     }
     .stat-label {
@@ -352,6 +461,7 @@ export function generateMediaKitHTML(
       background: var(--card-bg);
       border: 1px solid var(--card-border);
       border-radius: 20px; padding: 24px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.05);
     }
     .card-title {
       font-size: 0.8rem; font-weight: 600; color: var(--text-dim);
@@ -368,7 +478,7 @@ export function generateMediaKitHTML(
       font-size: 0.78rem; color: var(--text-dim); margin-bottom: 5px;
     }
     .bar-track {
-      height: 8px; background: rgba(255,255,255,0.07); border-radius: 4px; overflow: hidden;
+      height: 8px; background: rgba(0,0,0,0.06); border-radius: 4px; overflow: hidden;
     }
     .bar-fill {
       height: 100%; border-radius: 4px;
@@ -385,7 +495,7 @@ export function generateMediaKitHTML(
     .country-flag { font-size: 1.2rem; }
     .country-name { font-size: 0.82rem; color: var(--text-dim); flex: 1; }
     .country-pct {
-      font-size: 0.82rem; font-weight: 700; color: white; min-width: 36px; text-align: right;
+      font-size: 0.82rem; font-weight: 700; color: #1a1a2e; min-width: 36px; text-align: right;
     }
     .country-bar-wrap { flex: 2; }
 
@@ -399,7 +509,7 @@ export function generateMediaKitHTML(
     .content-bar-wrap { flex: 1; }
     .content-bar {
       height: 6px; border-radius: 3px; overflow: hidden;
-      background: rgba(255,255,255,0.06);
+      background: rgba(0,0,0,0.06);
     }
     .content-bar-inner {
       height: 100%; border-radius: 3px;
@@ -434,6 +544,20 @@ export function generateMediaKitHTML(
       background: ${accent}22; border: 1px solid ${accent}55;
       display: flex; align-items: center; justify-content: center;
       color: ${accent}; flex-shrink: 0;
+    }
+
+    /* ── Partners ── */
+    .partners-grid { display: flex; flex-wrap: wrap; gap: 10px; }
+    .partner-item {
+      display: flex; align-items: center; gap: 8px;
+      background: var(--card-bg); border: 1px solid var(--card-border);
+      border-radius: 12px; padding: 10px 20px;
+      font-size: 0.85rem; font-weight: 600; color: var(--text-dim);
+      box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+    }
+    .partner-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: ${accent}; flex-shrink: 0;
     }
 
     /* ── CTA ── */
@@ -494,8 +618,8 @@ export function generateMediaKitHTML(
         ${profile.website ? `<div class="hero-handle" style="margin-top:3px;font-size:0.82rem;opacity:0.7">${ICON.globe} ${profile.website}</div>` : ""}
         <div class="hero-tagline">${config.tagline}</div>
         <div class="hero-badges">
-          <span class="hero-badge">${ICON.users} ${fmtNum(profile.followerCount)} abonnés</span>
-          ${config.ratePerPost ? `<span class="hero-badge accent-badge">💰 À partir de ${config.ratePerPost} / post</span>` : ""}
+          <span class="hero-badge">${ICON.users} ${fmtNum(profile.followerCount)} ${L.followers}</span>
+          ${config.ratePerPost ? `<span class="hero-badge accent-badge">💰 ${L.from} ${config.ratePerPost} ${L.perPost}</span>` : ""}
         </div>
       </div>
     </div>
@@ -506,22 +630,22 @@ export function generateMediaKitHTML(
     <div class="stat-card">
       <div class="stat-icon">${ICON.users}</div>
       <div class="stat-value">${fmtNum(profile.followerCount)}</div>
-      <div class="stat-label">Abonnés</div>
+      <div class="stat-label">${L.followers}</div>
     </div>
     <div class="stat-card">
       <div class="stat-icon">${ICON.trending}</div>
       <div class="stat-value">${engagement.toFixed(2)}%</div>
-      <div class="stat-label">Taux d'engagement</div>
+      <div class="stat-label">${L.engagementRate}</div>
     </div>
     <div class="stat-card">
       <div class="stat-icon">${ICON.eye}</div>
       <div class="stat-value">${fmtNum(reach)}</div>
-      <div class="stat-label">Portée</div>
+      <div class="stat-label">${L.reach}</div>
     </div>
     <div class="stat-card">
       <div class="stat-icon">${ICON.image}</div>
       <div class="stat-value">${fmtNum(impressions)}</div>
-      <div class="stat-label">Impressions</div>
+      <div class="stat-label">${L.impressions}</div>
     </div>
   </div>
 
@@ -529,31 +653,31 @@ export function generateMediaKitHTML(
   <div class="main">
 
     <!-- Engagement & Performance -->
-    <div class="section-head"><h2>Performance</h2></div>
+    <div class="section-head"><h2>${L.performance}</h2></div>
     <div class="two-col">
 
       <!-- Engagement rings -->
       <div class="card">
-        <div class="card-title">${ICON.trending} Indicateurs clés</div>
+        <div class="card-title">${ICON.trending} ${L.keyMetrics}</div>
         <div class="rings-row">
           ${erRing}
           ${
             nonFollowerRing ||
             `<div style="text-align:center">
-            <div style="font-size:1.6rem;font-weight:800;color:white;">${fmtNum(metrics.avgLikesPerPost)}</div>
-            <div style="font-size:0.68rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-top:4px">Likes moy.</div>
+            <div style="font-size:1.6rem;font-weight:800;color:#1a1a2e;">${fmtNum(metrics.avgLikesPerPost)}</div>
+            <div style="font-size:0.68rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-top:4px">${L.avgLikes}</div>
           </div>`
           }
           <div style="text-align:center">
-            <div style="font-size:1.6rem;font-weight:800;color:white;">${fmtNum(metrics.avgCommentsPerPost)}</div>
-            <div style="font-size:0.68rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-top:4px">Commentaires</div>
+            <div style="font-size:1.6rem;font-weight:800;color:#1a1a2e;">${fmtNum(metrics.avgCommentsPerPost)}</div>
+            <div style="font-size:0.68rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-top:4px">${L.comments}</div>
           </div>
         </div>
       </div>
 
       <!-- Content type performance -->
       <div class="card">
-        <div class="card-title">${ICON.image} Formats de contenu</div>
+        <div class="card-title">${ICON.image} ${L.contentFormats}</div>
         ${sortedContent
           .slice(0, 5)
           .map(
@@ -566,21 +690,21 @@ export function generateMediaKitHTML(
             </div>
           </div>
           <div class="content-er">${ct.engagementRate.toFixed(1)}%</div>
-          <div class="content-count">${ct.count} posts</div>
+          <div class="content-count">${ct.count} ${L.posts}</div>
         </div>`
           )
           .join("")}
-        ${sortedContent.length === 0 ? `<div style="color:var(--text-muted);font-size:0.82rem">Aucune donnée</div>` : ""}
+        ${sortedContent.length === 0 ? `<div style="color:var(--text-muted);font-size:0.82rem">${L.noData}</div>` : ""}
       </div>
     </div>
 
     <!-- Audience -->
-    <div class="section-head"><h2>Audience</h2></div>
+    <div class="section-head"><h2>${L.audience}</h2></div>
     <div class="two-col">
 
       <!-- Location -->
       <div class="card">
-        <div class="card-title">${ICON.globe} Localisation</div>
+        <div class="card-title">${ICON.globe} ${L.location}</div>
         ${
           topCountries.length > 0
             ? `
@@ -603,18 +727,18 @@ export function generateMediaKitHTML(
         ${
           topCities.length > 0
             ? `<div style="margin-top:16px;display:flex;flex-wrap:wrap;gap:6px">
-          ${topCities.map(([c, p]) => `<span style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:20px;padding:3px 12px;font-size:0.72rem;color:var(--text-dim)">📍 ${c} ${p}%</span>`).join("")}
+          ${topCities.map(([c, p]) => `<span style="background:rgba(0,0,0,0.04);border:1px solid rgba(0,0,0,0.08);border-radius:20px;padding:3px 12px;font-size:0.72rem;color:var(--text-dim)">📍 ${c} ${p}%</span>`).join("")}
         </div>`
             : ""
         }
         `
-            : `<div style="color:var(--text-muted);font-size:0.82rem">Données non disponibles</div>`
+            : `<div style="color:var(--text-muted);font-size:0.82rem">${L.noDataAvailable}</div>`
         }
       </div>
 
       <!-- Demographics -->
       <div class="card">
-        <div class="card-title">👥 Démographie</div>
+        <div class="card-title">👥 ${L.demographics}</div>
 
         ${
           hasGender
@@ -623,10 +747,10 @@ export function generateMediaKitHTML(
           ${genderDonut}
           <div class="gender-legend">
             <div style="font-size:0.82rem;color:var(--text-dim)">
-              <span class="gender-dot" style="background:${accent}"></span>Femmes · <strong>${female.toFixed(0)}%</strong>
+              <span class="gender-dot" style="background:${accent}"></span>${L.women} · <strong>${female.toFixed(0)}%</strong>
             </div>
             <div style="font-size:0.82rem;color:var(--text-dim)">
-              <span class="gender-dot" style="background:${secondary}"></span>Hommes · <strong>${male.toFixed(0)}%</strong>
+              <span class="gender-dot" style="background:${secondary}"></span>${L.men} · <strong>${male.toFixed(0)}%</strong>
             </div>
           </div>
         </div>`
@@ -639,7 +763,7 @@ export function generateMediaKitHTML(
             ([group, pct]) => `
         <div class="bar-row">
           <div class="bar-label">
-            <span>${group} ans</span>
+            <span>${group}</span>
             <span style="font-weight:700">${pct}%</span>
           </div>
           <div class="bar-track">
@@ -649,7 +773,7 @@ export function generateMediaKitHTML(
           )
           .join("")}
 
-        ${ageGroups.length === 0 && !hasGender ? `<div style="color:var(--text-muted);font-size:0.82rem">Données non disponibles</div>` : ""}
+        ${ageGroups.length === 0 && !hasGender ? `<div style="color:var(--text-muted);font-size:0.82rem">${L.noDataAvailable}</div>` : ""}
       </div>
     </div>
 
@@ -657,7 +781,7 @@ export function generateMediaKitHTML(
     ${
       config.services.length > 0
         ? `
-    <div class="section-head"><h2>Services proposés</h2></div>
+    <div class="section-head"><h2>${L.services}</h2></div>
     <div class="services-grid">
       ${config.services
         .map(
@@ -672,24 +796,43 @@ export function generateMediaKitHTML(
         : ""
     }
 
+    <!-- Past Partnerships -->
+    ${
+      config.pastPartnerships && config.pastPartnerships.length > 0
+        ? `
+    <div class="section-head"><h2>${L.pastPartnerships}</h2></div>
+    <div class="partners-grid">
+      ${config.pastPartnerships
+        .map(
+          (p) => `
+      <div class="partner-item">
+        <div class="partner-dot"></div>
+        ${p}
+      </div>`
+        )
+        .join("")}
+    </div>`
+        : ""
+    }
+
     <!-- CTA -->
     ${
       config.contactEmail
         ? `
     <div class="cta-section">
-      <h2>Collaborons ensemble</h2>
-      <p>Disponible pour des partenariats, placements produits et créations de contenu sur mesure.</p>
+      <h2>${L.letsWorkTogether}</h2>
+      <p>${L.ctaSubtitle}</p>
       <div>
         <a href="mailto:${config.contactEmail}" class="cta-email-btn">${ICON.mail} ${config.contactEmail}</a>
       </div>
-      ${config.ratePerPost ? `<div class="rate-pill">💰 À partir de ${config.ratePerPost} / post sponsorisé</div>` : ""}
+      ${config.ratePerPost ? `<div class="rate-pill">💰 ${L.startingFrom} ${config.ratePerPost} / ${L.sponsoredPost}</div>` : ""}
     </div>`
         : ""
     }
 
     <div class="footer">
-      <p>Données extraites de l'export Instagram officiel · ${new Date().toLocaleDateString("fr-FR")}</p>
-      <p style="margin-top:4px">Généré avec <span>InstaInsights</span></p>
+      <p>${L.dataFooter} · ${new Date().toLocaleDateString(config.lang === "fr" ? "fr-FR" : "en-GB")}</p>
+      <p style="margin-top:4px">${L.generatedWith} <span>InstaInsights</span></p>
     </div>
   </div>
 
