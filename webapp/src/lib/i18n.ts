@@ -560,6 +560,29 @@ const FR = {
   "nav.campaigns": "Campagnes",
   "nav.invoice": "Factures",
   "nav.referral": "Parrainage",
+
+  // ── Hashtag Tracker ───────────────────────────────────────────────────────
+  "hashtags.title": "Hashtag Tracker",
+  "hashtags.subtitle":
+    "Analyse les performances de tes hashtags et découvre de nouvelles opportunités",
+  "hashtags.no_data": "Aucun post avec hashtags trouvé dans ton export.",
+  "hashtags.stats.total": "Hashtags uniques",
+  "hashtags.stats.uses": "Utilisations totales",
+  "hashtags.stats.avg_per_post": "Moy. par post",
+  "hashtags.top_used": "Les plus utilisés",
+  "hashtags.top_performers": "Meilleures performances",
+  "hashtags.col.tag": "Hashtag",
+  "hashtags.col.count": "Utilisations",
+  "hashtags.col.avg_likes": "Moy. likes",
+  "hashtags.col.avg_comments": "Moy. commentaires",
+  "hashtags.col.avg_engagement": "Moy. interactions",
+  "hashtags.suggest": "Suggérer de nouveaux hashtags",
+  "hashtags.suggesting": "Analyse en cours...",
+  "hashtags.suggestions_title": "Suggestions IA",
+  "hashtags.niche_label": "Niche (optionnel)",
+  "hashtags.niche_placeholder": "Ex : Voyage, Fitness, Food...",
+  "hashtags.copy": "Copier",
+  "hashtags.copied": "Copié !",
 } as const;
 
 const EN: Record<keyof typeof FR, string> = {
@@ -1109,6 +1132,28 @@ const EN: Record<keyof typeof FR, string> = {
   "nav.campaigns": "Campaigns",
   "nav.invoice": "Invoices",
   "nav.referral": "Referral",
+
+  // ── Hashtag Tracker ───────────────────────────────────────────────────────
+  "hashtags.title": "Hashtag Tracker",
+  "hashtags.subtitle": "Analyse your hashtag performance and discover new opportunities",
+  "hashtags.no_data": "No posts with hashtags found in your export.",
+  "hashtags.stats.total": "Unique hashtags",
+  "hashtags.stats.uses": "Total uses",
+  "hashtags.stats.avg_per_post": "Avg per post",
+  "hashtags.top_used": "Most used",
+  "hashtags.top_performers": "Top performers",
+  "hashtags.col.tag": "Hashtag",
+  "hashtags.col.count": "Uses",
+  "hashtags.col.avg_likes": "Avg likes",
+  "hashtags.col.avg_comments": "Avg comments",
+  "hashtags.col.avg_engagement": "Avg interactions",
+  "hashtags.suggest": "Suggest new hashtags",
+  "hashtags.suggesting": "Analysing...",
+  "hashtags.suggestions_title": "AI Suggestions",
+  "hashtags.niche_label": "Niche (optional)",
+  "hashtags.niche_placeholder": "e.g. Travel, Fitness, Food...",
+  "hashtags.copy": "Copy",
+  "hashtags.copied": "Copied!",
 };
 
 export type TranslationKey = keyof typeof FR;
