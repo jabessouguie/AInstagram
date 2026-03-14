@@ -9,12 +9,18 @@ const BugReportButton = dynamic(
   { ssr: false }
 );
 
+const CookieBanner = dynamic(
+  () => import("@/components/CookieBanner").then((m) => m.CookieBanner),
+  { ssr: false }
+);
+
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
       <LanguageProvider>
         {children}
         <BugReportButton />
+        <CookieBanner />
       </LanguageProvider>
     </ThemeProvider>
   );
