@@ -19,12 +19,18 @@ const PosthogProvider = dynamic(
   { ssr: false }
 );
 
+const OnboardingWizard = dynamic(
+  () => import("@/components/OnboardingWizard").then((m) => m.OnboardingWizard),
+  { ssr: false }
+);
+
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
       <LanguageProvider>
         {children}
         <PosthogProvider />
+        <OnboardingWizard />
         <BugReportButton />
         <CookieBanner />
       </LanguageProvider>
