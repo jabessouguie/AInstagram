@@ -417,10 +417,14 @@ const FR = {
   "query.error": "Erreur lors de la requête",
 
   // ── Upload ──────────────────────────────────────────────────────────────
-  "upload.dropzone": "Dépose tes exports Instagram (.zip) ici pour mettre à jour tes données",
+  "upload.dropzone": "Dépose tes exports Instagram (.zip) au format JSON ici",
   "upload.uploading": "Import en cours...",
   "upload.invalidFormat": "Seuls les fichiers .zip sont acceptés",
   "upload.error": "Erreur lors de l'import",
+  "upload.htmlFormatError":
+    'Format HTML détecté. Dans Instagram, choisis "Format des données : JSON" avant de télécharger ton export.',
+  "upload.jsonOnlyHint":
+    "Format requis : JSON. Paramètres Instagram → Ton activité → Télécharger tes informations → Format : JSON",
 
   // ── Header (remaining) ────────────────────────────────────────────────────
   "header.homeAriaLabel": "Retour à l'accueil",
@@ -1172,10 +1176,14 @@ const EN: Record<keyof typeof FR, string> = {
   "query.error": "Query failed",
 
   // ── Upload ──────────────────────────────────────────────────────────────
-  "upload.dropzone": "Drop your Instagram exports (.zip) here to update your data",
+  "upload.dropzone": "Drop your Instagram JSON export (.zip) here",
   "upload.uploading": "Uploading...",
   "upload.invalidFormat": "Only .zip files are accepted",
   "upload.error": "Upload failed",
+  "upload.htmlFormatError":
+    'HTML format detected. In Instagram, select "Data format: JSON" before downloading your export.',
+  "upload.jsonOnlyHint":
+    "Required format: JSON. Instagram Settings → Your activity → Download your information → Format: JSON",
 
   // ── Header (remaining) ────────────────────────────────────────────────────
   "header.homeAriaLabel": "Back to home",
