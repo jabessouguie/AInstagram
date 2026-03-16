@@ -10,6 +10,7 @@ export type CollabStatus =
   | "not_contacted"
   | "not_interested"
   | "email_sent"
+  | "email_bounced"
   | "dm_sent"
   | "replied_positive"
   | "replied_negative";
@@ -70,7 +71,7 @@ export function updateStatus(
 
 /** Returns true if the collab needs a follow-up (email sent > FOLLOWUP_DAYS days ago, no reply) */
 export function needsFollowUp(tracking: CollabTracking): boolean {
-  if (tracking.status !== "email_sent") return false;
+  if (tracking.status !== "email_sent" && tracking.status !== "email_bounced") return false;
   if (!tracking.sentAt) return false;
   const sent = new Date(tracking.sentAt);
   const now = new Date();
@@ -108,6 +109,7 @@ export const STATUS_LABELS: Record<CollabStatus, string> = {
   not_contacted: "Non contacté",
   not_interested: "Pas intéressé",
   email_sent: "Email envoyé",
+  email_bounced: "Email bounced",
   dm_sent: "DM envoyé",
   replied_positive: "Réponse positive",
   replied_negative: "Réponse négative",
@@ -117,7 +119,8 @@ export const STATUS_COLORS: Record<CollabStatus, string> = {
   not_contacted: "text-muted-foreground border-border bg-muted/30",
   not_interested: "text-red-400 border-red-400/30 bg-red-400/10",
   email_sent: "text-sky-400 border-sky-400/30 bg-sky-400/10",
+  email_bounced: "text-orange-400 border-orange-400/30 bg-orange-400/10",
   dm_sent: "text-violet-400 border-violet-400/30 bg-violet-400/10",
   replied_positive: "text-emerald-400 border-emerald-400/30 bg-emerald-400/10",
-  replied_negative: "text-orange-400 border-orange-400/30 bg-orange-400/10",
+  replied_negative: "text-red-400 border-red-400/30 bg-red-400/10",
 };

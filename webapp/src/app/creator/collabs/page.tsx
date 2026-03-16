@@ -17,6 +17,7 @@ import {
   CheckCircle2,
   XCircle,
   AlertCircle,
+  AlertTriangle,
   RefreshCw,
   Eye,
   EyeOff,
@@ -53,6 +54,7 @@ import {
 } from "@/lib/mediakit-generator";
 import { loadBrandSettings } from "@/lib/brand-settings-store";
 import { loadUserProfile, getDisplayName } from "@/lib/user-profile-store";
+import { loadPastCollabs, formatPastCollabsForPrompt } from "@/lib/past-collabs-store";
 import { loadMediaKitConfig } from "@/lib/mediakit-config-store";
 import type { InstagramAnalytics } from "@/types/instagram";
 import type { BrandPitchResponse } from "@/app/api/collabs/brand-pitch/route";
@@ -166,7 +168,14 @@ function TrackingPanel({
       const res = await fetch("/api/collabs/email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ collab, profile: profile ?? {}, language, followUp: true }),
+        body: JSON.stringify({
+          collab,
+          profile: profile ?? {},
+          language,
+          followUp: true,
+          creatorFirstName: loadUserProfile().firstName || undefined,
+          pastCollabsContext: formatPastCollabsForPrompt(loadPastCollabs()) || undefined,
+        }),
       });
       const json = await res.json();
       if (json.success && json.data)
@@ -600,7 +609,14 @@ function EmailPanel({
         const res = await fetch("/api/collabs/email", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ collab, profile, feedback, language }),
+          body: JSON.stringify({
+            collab,
+            profile,
+            feedback,
+            language,
+            creatorFirstName: loadUserProfile().firstName || undefined,
+            pastCollabsContext: formatPastCollabsForPrompt(loadPastCollabs()) || undefined,
+          }),
         });
         const json = await res.json();
         if (json.success && json.data) {
@@ -676,8 +692,25 @@ function EmailPanel({
 
   const kitFileName = `mediakit-${collab.name.replace(/\s+/g, "-").toLowerCase()}.html`;
 
+  const markBounced = () => {
+    const updated: CollabTracking = { ...tracking, status: "email_bounced" };
+    saveTracking(updated);
+    onTrackingUpdate(updated);
+  };
+
   return (
     <div className="space-y-2">
+      {/* Email delivery warning */}
+      {collab.contactEmail && (
+        <div className="flex items-start gap-2 rounded-md border border-orange-400/20 bg-orange-400/5 px-3 py-2 text-xs text-orange-300/80">
+          <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0 text-orange-400" />
+          <span>
+            Ces adresses sont publiques mais peuvent ne pas être délivrées (boîte pleine, alias
+            inactif…). Utilise le DM Instagram en priorité.
+          </span>
+        </div>
+      )}
+
       <div className="flex flex-wrap items-center gap-2">
         {collab.contactEmail && (
           <span className="font-mono text-xs text-muted-foreground">{collab.contactEmail}</span>
@@ -700,6 +733,18 @@ function EmailPanel({
               ? t("collabs.card.regenerateEmail")
               : t("collabs.card.generateEmail")}
         </Button>
+        {/* Bounce report button — visible after email was sent */}
+        {tracking.status === "email_sent" && (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="text-xs text-orange-400 hover:text-orange-300"
+            onClick={markBounced}
+          >
+            <AlertTriangle className="h-3 w-3" />
+            Email non délivré
+          </Button>
+        )}
         {emailData && (
           <button
             onClick={() => setShowPanel((p) => !p)}
