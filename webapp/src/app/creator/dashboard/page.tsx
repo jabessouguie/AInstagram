@@ -137,7 +137,11 @@ export default function CreatorDashboard() {
           const url = i > 0 ? "/api/upload?keepExisting=1" : "/api/upload";
           const json = await uploadOneFile(zips[i], url);
           if (!json.success) {
-            setUploadError(`${zips[i].name}: ${json.error ?? t("upload.error")}`);
+            const errMsg =
+              json.error === "html_format_detected"
+                ? t("upload.htmlFormatError")
+                : `${zips[i].name}: ${json.error ?? t("upload.error")}`;
+            setUploadError(errMsg);
             allOk = false;
             break;
           }
@@ -386,6 +390,7 @@ export default function CreatorDashboard() {
               e.target.value = "";
             }}
           />
+          <p className="mt-1 text-xs text-muted-foreground">{t("upload.jsonOnlyHint")}</p>
           {uploadError && <p className="mt-1 text-xs text-destructive">{uploadError}</p>}
           {uploadSuccess && (
             <p className="mt-1 flex items-center gap-1.5 text-xs text-emerald-400">
