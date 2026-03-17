@@ -40,7 +40,7 @@ import { saveCarouselContext, saveStoriesContext } from "@/lib/content-prompt-co
 import { OptimalSlotsWidget } from "@/components/creator/OptimalSlotsWidget";
 import { drawStyledTextBlock, wrapText } from "@/lib/canvas-text-renderer";
 import { ModelSelector } from "@/components/creator/ModelSelector";
-import { getModelPref, saveModelPref } from "@/lib/model-prefs-store";
+import { getModelPref, saveModelPref, DEFAULT_MODEL } from "@/lib/model-prefs-store";
 
 // ─── Canvas renderer ─────────────────────────────────────────────────────────
 
@@ -428,8 +428,11 @@ export default function CarouselPage() {
   // Format switcher
   const [activeFormat, setActiveFormat] = useState<"carousel" | "stories" | "reels">("carousel");
 
-  // Model selector — persisted per feature
-  const [aiModel, setAiModel] = useState(() => getModelPref("carousel"));
+  // Model selector — persisted per feature (useEffect avoids SSR/client hydration mismatch)
+  const [aiModel, setAiModel] = useState(DEFAULT_MODEL);
+  useEffect(() => {
+    setAiModel(getModelPref("carousel"));
+  }, []);
 
   // Generation state
   const [isGenerating, setIsGenerating] = useState(false);

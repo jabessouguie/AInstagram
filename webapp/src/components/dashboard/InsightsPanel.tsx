@@ -23,7 +23,7 @@ import { useT } from "@/lib/i18n";
 import type { AIInsight, InsightsApiRequest } from "@/types/instagram";
 import { useInsights } from "@/hooks/useInsights";
 import { ModelSelector } from "@/components/creator/ModelSelector";
-import { getModelPref, saveModelPref } from "@/lib/model-prefs-store";
+import { getModelPref, saveModelPref, DEFAULT_MODEL } from "@/lib/model-prefs-store";
 
 interface InsightsPanelProps {
   request: InsightsApiRequest;
@@ -122,7 +122,10 @@ export function InsightsPanel({ request, initialInsights, summary }: InsightsPan
   const t = useT();
   const { insights, isLoading, generate } = useInsights();
   const [hasGenerated, setHasGenerated] = useState(false);
-  const [insightsModel, setInsightsModel] = useState(() => getModelPref("insights"));
+  const [insightsModel, setInsightsModel] = useState(DEFAULT_MODEL);
+  useEffect(() => {
+    setInsightsModel(getModelPref("insights"));
+  }, []);
 
   const insightsStatuses = [
     t("insights.status.analyzeProfile"),

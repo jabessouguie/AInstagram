@@ -31,7 +31,7 @@ import {
   type ReportPeriodType,
 } from "@/lib/report-store";
 import { ModelSelector } from "@/components/creator/ModelSelector";
-import { getModelPref, saveModelPref } from "@/lib/model-prefs-store";
+import { getModelPref, saveModelPref, DEFAULT_MODEL } from "@/lib/model-prefs-store";
 
 // ─── NLP Query ────────────────────────────────────────────────────────────────
 
@@ -306,7 +306,10 @@ export default function ReportsPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [periodType, setPeriodType] = useState<ReportPeriodType>("monthly");
-  const [reportModel, setReportModel] = useState(() => getModelPref("report"));
+  const [reportModel, setReportModel] = useState(DEFAULT_MODEL);
+  useEffect(() => {
+    setReportModel(getModelPref("report"));
+  }, []);
   const reportRef = useRef<HTMLDivElement>(null);
 
   // Load persisted reports on mount
