@@ -215,11 +215,22 @@ export interface AIInsight {
   priority: "high" | "medium" | "low";
 }
 
+export interface CalendarSuggestion {
+  day: string;
+  time: string;
+  contentType: string;
+  rationale: string;
+}
+
 export interface InsightsResponse {
   insights: AIInsight[];
   summary: string;
   generatedAt: Date;
   model: string;
+  /** Ready-to-use caption templates derived from top-performing posts */
+  postPromptTemplates?: string[];
+  /** Optimal posting slots with content type recommendations */
+  calendarSuggestions?: CalendarSuggestion[];
 }
 
 // ============================================================
@@ -249,6 +260,8 @@ export interface InsightsApiRequest {
   userFeedback?: string;
   /** Previously generated insights — used to deepen analysis on regeneration */
   previousInsights?: AIInsight[];
+  /** AI model override (e.g. "claude-sonnet-4-6", "gpt-4o"). Falls back to server default. */
+  model?: string;
 }
 
 export interface InsightsApiResponse {
@@ -542,6 +555,10 @@ export interface ExecutiveReport {
   audienceTrends: string;
   nextMonthRecommendations: string[];
   generatedAt: string;
+  /** Ready-to-use caption prompt templates for the next period */
+  postPromptTemplates?: string[];
+  /** Optimal posting calendar for the next period */
+  calendarSuggestions?: CalendarSuggestion[];
 }
 
 export interface ReportGenerateResponse {

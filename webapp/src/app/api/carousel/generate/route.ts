@@ -64,7 +64,12 @@ ${captionsSection}
 
 ### Slide content rules
 - Write every word in ${lang}. No other language.
-- Slide 1: scroll-stopping hook — bold statement or surprising truth (title max 5 words, no full stop)
+- Slide 1 — SCROLL-STOPPING HOOK (critical): title MUST use one of these three formulas:
+  • A shocking number or stat that reframes the topic (e.g. "3 jours pour changer ça", "92% of travellers miss this")
+  • A counterintuitive truth that contradicts common belief (e.g. "Less sleep, better results", "The 'safe' choice that costs more")
+  • A concrete specific promise + curiosity gap that demands slide 2 (e.g. "I lost 2k followers doing this", "The trick guides never mention")
+  FORBIDDEN in slide 1 title: "Voici comment", "Discover", "Here's how", "Learn how", "Introducing", "Find out", "Check out", "Amazing", "The ultimate guide"
+  Slide 1 title: max 5 words, no full stop, no exclamation mark unless essential for the formula
 - Slides 2–${numSlides - 1}: one key insight or tip per slide, written from personal experience
 - Slide ${numSlides}: clear CTA (save, share, follow, comment)
 - Title: max 5 words, sentence case (only first word capitalised, no caps after colons)

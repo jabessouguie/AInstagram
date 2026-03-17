@@ -39,6 +39,8 @@ import { loadBrandSettings } from "@/lib/brand-settings-store";
 import { saveCarouselContext, saveStoriesContext } from "@/lib/content-prompt-context-store";
 import { OptimalSlotsWidget } from "@/components/creator/OptimalSlotsWidget";
 import { drawStyledTextBlock, wrapText } from "@/lib/canvas-text-renderer";
+import { ModelSelector } from "@/components/creator/ModelSelector";
+import { getModelPref, saveModelPref } from "@/lib/model-prefs-store";
 
 // ─── Canvas renderer ─────────────────────────────────────────────────────────
 
@@ -426,8 +428,8 @@ export default function CarouselPage() {
   // Format switcher
   const [activeFormat, setActiveFormat] = useState<"carousel" | "stories" | "reels">("carousel");
 
-  // Model selector
-  const [aiModel, setAiModel] = useState("gemini-3-flash-preview");
+  // Model selector — persisted per feature
+  const [aiModel, setAiModel] = useState(() => getModelPref("carousel"));
 
   // Generation state
   const [isGenerating, setIsGenerating] = useState(false);
@@ -1514,7 +1516,16 @@ export default function CarouselPage() {
                 </CardContent>
               </Card>
 
-              {/* Generate button */}
+              {/* Model selector + Generate button */}
+              <ModelSelector
+                feature="carousel"
+                value={aiModel}
+                onChange={(m) => {
+                  setAiModel(m);
+                  saveModelPref("carousel", m);
+                }}
+                className="mb-2"
+              />
               <Button
                 onClick={handleGenerate}
                 disabled={isGenerating || !subject.trim()}
@@ -1566,6 +1577,12 @@ export default function CarouselPage() {
                         <div className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-black/70 text-xs font-bold text-white ring-1 ring-white/30">
                           {previewIndex + 1}
                         </div>
+                        {/* HOOK badge on slide 1 */}
+                        {previewIndex === 0 && (
+                          <div className="absolute left-2 top-2 flex items-center gap-1 rounded-full bg-amber-500/90 px-2 py-0.5 text-[10px] font-semibold text-white shadow-sm">
+                            ⚡ Hook
+                          </div>
+                        )}
                         {/* Navigation arrows */}
                         {previewBlobs.length > 1 && (
                           <>
