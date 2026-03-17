@@ -292,14 +292,23 @@ function DMCard({ suggestion }: { suggestion: DMSuggestion }) {
           <p className="truncate text-sm font-medium">@{suggestion.username}</p>
           <p className="mt-0.5 text-xs text-muted-foreground">{suggestion.reason}</p>
         </div>
-        <a
-          href={suggestion.profileUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="shrink-0 text-muted-foreground hover:text-foreground"
-        >
-          <ExternalLink className="h-3.5 w-3.5" />
-        </a>
+        <div className="flex shrink-0 items-center gap-1">
+          <button
+            onClick={markSent}
+            title="Marquer comme envoyé"
+            className="rounded p-1 text-muted-foreground hover:text-emerald-400"
+          >
+            <Check className="h-3.5 w-3.5" />
+          </button>
+          <a
+            href={suggestion.profileUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-muted-foreground hover:text-foreground"
+          >
+            <ExternalLink className="h-3.5 w-3.5" />
+          </a>
+        </div>
       </div>
 
       <textarea
@@ -326,34 +335,16 @@ function DMCard({ suggestion }: { suggestion: DMSuggestion }) {
           Générer DM
         </Button>
         {message && (
-          <>
-            <button
-              onClick={copyMsg}
-              className="rounded p-1 text-muted-foreground hover:text-foreground"
-            >
-              {copied ? (
-                <Check className="h-3.5 w-3.5 text-emerald-500" />
-              ) : (
-                <Copy className="h-3.5 w-3.5" />
-              )}
-            </button>
-            <button
-              onClick={() => setShowFeedback((v) => !v)}
-              title="Affiner le DM"
-              className="rounded p-1 text-muted-foreground hover:text-foreground"
-            >
-              <RefreshCw className="h-3.5 w-3.5" />
-            </button>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={markSent}
-              className="ml-auto gap-1.5 text-xs text-emerald-500 hover:bg-emerald-500/10 hover:text-emerald-400"
-            >
-              <Check className="h-3 w-3" />
-              DM envoyé
-            </Button>
-          </>
+          <button
+            onClick={copyMsg}
+            className="rounded p-1 text-muted-foreground hover:text-foreground"
+          >
+            {copied ? (
+              <Check className="h-3.5 w-3.5 text-emerald-500" />
+            ) : (
+              <Copy className="h-3.5 w-3.5" />
+            )}
+          </button>
         )}
       </div>
 
