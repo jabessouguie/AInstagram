@@ -395,9 +395,8 @@ export default function CarouselPage() {
   const [previewBlobs, setPreviewBlobs] = useState<string[]>([]); // object URLs
   const [isRendering, setIsRendering] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [slideFeedbacks, setSlideFeedbacks] = useState<string[]>([]);
-  const [slideRefining, setSlideRefining] = useState<boolean[]>([]);
-  const [slideShowFeedback, setSlideShowFeedback] = useState<boolean[]>([]);
+  const [refineFeedback, setRefineFeedback] = useState("");
+  const [isRefining, setIsRefining] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const storyFileInputRef = useRef<HTMLInputElement>(null);
 
@@ -638,66 +637,57 @@ export default function CarouselPage() {
     });
   };
 
-  // ── Per-slide refine ──────────────────────────────────────────────────────
-  const handleRefineSlide = async (index: number) => {
-    if (!result?.slides?.[index]) return;
-    const feedback = slideFeedbacks[index]?.trim();
-    if (!feedback) return;
-
-    setSlideRefining((prev) => {
-      const next = [...prev];
-      next[index] = true;
-      return next;
-    });
-
+  // ── Refine (feedback loop) ────────────────────────────────────────────────
+  const handleRefine = async () => {
+    if (!refineFeedback.trim() || !result?.slides) return;
+    setIsRefining(true);
     try {
-      const res = await fetch("/api/carousel/refine-slide", {
+      const res = await fetch("/api/carousel/refine", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          slide: result.slides[index],
-          feedback,
+          slides: result.slides,
+          instagramDescription: result.instagramDescription ?? "",
+          hashtags: result.hashtags ?? [],
+          feedback: refineFeedback.trim(),
           language,
           model: aiModel,
         }),
       });
-      const json: { success: boolean; slide?: CarouselSlideContent } = await res.json();
-      if (json.success && json.slide) {
-        // Update result slides
-        const updatedSlides = result.slides.map((s, i) => (i === index ? json.slide! : s));
-        setResult({ ...result, slides: updatedSlides });
-
-        // Re-render only this slide
+      const json: CarouselGenerateResponse = await res.json();
+      if (json.success && json.slides) {
+        setResult(json);
+        setRefineFeedback("");
+        // Re-render slides with the updated content
+        setPreviewBlobs([]);
         setIsRendering(true);
-        await loadFont(fonts.title);
-        await loadFont(fonts.subtitle);
-        await loadFont(fonts.body);
-        const renderer = slideFormat === "story" ? renderStoryToBlob : renderSlideToBlob;
-        const blob = await renderer(
-          json.slide,
-          photos,
-          fonts,
-          primaryColor,
-          accentColor,
-          index,
-          updatedSlides.length
-        );
-        const newUrl = URL.createObjectURL(blob);
-        setPreviewBlobs((prev) => prev.map((url, i) => (i === index ? newUrl : url)));
-        setIsRendering(false);
-
-        // Reset feedback UI for this slide
-        setSlideFeedbacks((prev) => prev.map((f, i) => (i === index ? "" : f)));
-        setSlideShowFeedback((prev) => prev.map((v, i) => (i === index ? false : v)));
+        try {
+          await loadFont(fonts.title);
+          await loadFont(fonts.subtitle);
+          await loadFont(fonts.body);
+          const renderer = slideFormat === "story" ? renderStoryToBlob : renderSlideToBlob;
+          const blobs: string[] = [];
+          for (let i = 0; i < json.slides.length; i++) {
+            const blob = await renderer(
+              json.slides[i]!,
+              photos,
+              fonts,
+              primaryColor,
+              accentColor,
+              i,
+              json.slides.length
+            );
+            blobs.push(URL.createObjectURL(blob));
+          }
+          setPreviewBlobs(blobs);
+        } finally {
+          setIsRendering(false);
+        }
       }
     } catch {
       // silent
     } finally {
-      setSlideRefining((prev) => {
-        const next = [...prev];
-        next[index] = false;
-        return next;
-      });
+      setIsRefining(false);
     }
   };
 
@@ -1543,64 +1533,6 @@ export default function CarouselPage() {
                     </div>
                   )}
 
-                  {/* Per-slide refine */}
-                  {result?.success && previewBlobs.length > 0 && (
-                    <div className="rounded-lg border border-dashed border-border/60 p-3">
-                      <button
-                        onClick={() =>
-                          setSlideShowFeedback((prev) => {
-                            const next = [...prev];
-                            next[previewIndex] = !next[previewIndex];
-                            return next;
-                          })
-                        }
-                        className="flex w-full items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
-                      >
-                        <RefreshCw className="h-3 w-3" />
-                        Affiner la slide {previewIndex + 1}
-                      </button>
-                      {slideShowFeedback[previewIndex] && (
-                        <div className="mt-2 space-y-2">
-                          <textarea
-                            value={slideFeedbacks[previewIndex] ?? ""}
-                            onChange={(e) =>
-                              setSlideFeedbacks((prev) => {
-                                const next = [...prev];
-                                next[previewIndex] = e.target.value;
-                                return next;
-                              })
-                            }
-                            placeholder="Ex : rends le titre plus accrocheur, raccourcis le body, change l'émotion…"
-                            rows={2}
-                            className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-                          />
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleRefineSlide(previewIndex)}
-                            disabled={
-                              slideRefining[previewIndex] ||
-                              isRendering ||
-                              !slideFeedbacks[previewIndex]?.trim()
-                            }
-                            className="gap-1.5 text-xs"
-                          >
-                            {slideRefining[previewIndex] || isRendering ? (
-                              <Loader2 className="h-3 w-3 animate-spin" />
-                            ) : (
-                              <RefreshCw className="h-3 w-3" />
-                            )}
-                            {slideRefining[previewIndex]
-                              ? "Affinage…"
-                              : isRendering
-                                ? "Rendu…"
-                                : "Appliquer"}
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
                   {/* Instagram description */}
                   {result?.instagramDescription && (
                     <div className="space-y-2">
@@ -1641,6 +1573,36 @@ export default function CarouselPage() {
                           ))}
                         </div>
                       )}
+                    </div>
+                  )}
+
+                  {/* Refine via feedback */}
+                  {result?.success && (
+                    <div className="space-y-2 rounded-xl border border-dashed border-border/60 p-3">
+                      <p className="text-xs font-medium text-muted-foreground">
+                        Affiner le carrousel
+                      </p>
+                      <textarea
+                        value={refineFeedback}
+                        onChange={(e) => setRefineFeedback(e.target.value)}
+                        placeholder="Ex : rends le titre de la slide 1 plus accrocheur, change le CTA final, traduis en anglais…"
+                        rows={2}
+                        className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                      />
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={handleRefine}
+                        disabled={isRefining || isRendering || !refineFeedback.trim()}
+                        className="gap-1.5 text-xs"
+                      >
+                        {isRefining || isRendering ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <RefreshCw className="h-3 w-3" />
+                        )}
+                        {isRefining ? "Affinage…" : isRendering ? "Rendu…" : "Appliquer"}
+                      </Button>
                     </div>
                   )}
 
