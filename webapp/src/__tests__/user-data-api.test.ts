@@ -57,25 +57,25 @@ beforeEach(() => {
 
 describe("auth guard", () => {
   test("GET /api/user/campaigns returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValue(null);
+    mockAuth.mockResolvedValue(null as never);
     const res = await getCampaigns();
     expect(res.status).toBe(401);
   });
 
   test("GET /api/user/invoices returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValue(null);
+    mockAuth.mockResolvedValue(null as never);
     const res = await getInvoices();
     expect(res.status).toBe(401);
   });
 
   test("GET /api/user/collabs returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValue(null);
+    mockAuth.mockResolvedValue(null as never);
     const res = await getCollabs();
     expect(res.status).toBe(401);
   });
 
   test("GET /api/user/profile returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValue(null);
+    mockAuth.mockResolvedValue(null as never);
     const res = await getProfile();
     expect(res.status).toBe(401);
   });
