@@ -38,7 +38,7 @@ import type {
 import { loadBrandSettings } from "@/lib/brand-settings-store";
 import { saveCarouselContext, saveStoriesContext } from "@/lib/content-prompt-context-store";
 import { OptimalSlotsWidget } from "@/components/creator/OptimalSlotsWidget";
-import { drawStyledTextBlock } from "@/lib/canvas-text-renderer";
+import { drawStyledTextBlock, wrapText } from "@/lib/canvas-text-renderer";
 
 // ─── Canvas renderer ─────────────────────────────────────────────────────────
 
@@ -57,6 +57,34 @@ async function loadFont(family: string): Promise<void> {
   } catch {
     // Fall back to system fonts silently
   }
+}
+
+/**
+ * Pre-measures all text blocks and returns a scale factor [0.55, 1.0] so that
+ * title + subtitle + body fit within `available` pixels vertically.
+ */
+function computeLayoutScale(
+  ctx: CanvasRenderingContext2D,
+  slide: CarouselSlideContent,
+  fonts: CarouselFonts,
+  maxTextWidth: number,
+  titleSize: number,
+  subtitleSize: number,
+  bodySize: number,
+  available: number
+): number {
+  const lh = (s: number) => s * 1.18;
+  ctx.font = `bold ${titleSize}px "${fonts.title}"`;
+  let total = wrapText(ctx, slide.title, maxTextWidth, 3).length * lh(titleSize);
+  if (slide.subtitle) {
+    ctx.font = `500 ${subtitleSize}px "${fonts.subtitle}"`;
+    total += 12 + wrapText(ctx, slide.subtitle, maxTextWidth, 2).length * lh(subtitleSize);
+  }
+  if (slide.body) {
+    ctx.font = `400 ${bodySize}px "${fonts.body}"`;
+    total += 16 + wrapText(ctx, slide.body, maxTextWidth, 3).length * lh(bodySize);
+  }
+  return total > available ? Math.max(0.55, available / total) : 1.0;
 }
 
 async function renderSlideToBlob(
@@ -115,14 +143,21 @@ async function renderSlideToBlob(
   const titleStyle = { shadow: true };
   let textY = SLIDE_SIZE * 0.6;
 
+  // ── Adaptive font scaling (prevents body from being cut off) ─────────────
+  const available = SLIDE_SIZE * 0.4 - 60; // = 372px
+  const scale = computeLayoutScale(ctx, slide, fonts, maxTextWidth, 72, 44, 36, available);
+  const titleSize = Math.round(72 * scale);
+  const subtitleSize = Math.round(44 * scale);
+  const bodySize = Math.round(36 * scale);
+
   // ── Title ────────────────────────────────────────────────────────────────
   textY = drawStyledTextBlock(ctx, {
     text: slide.title,
     x: textX,
     y: textY,
     maxWidth: maxTextWidth,
-    font: `bold 72px "${fonts.title}"`,
-    fontSize: 72,
+    font: `bold ${titleSize}px "${fonts.title}"`,
+    fontSize: titleSize,
     color: "#ffffff",
     align: "left",
     maxLines: 3,
@@ -138,8 +173,8 @@ async function renderSlideToBlob(
     x: textX,
     y: textY,
     maxWidth: maxTextWidth,
-    font: `500 44px "${fonts.subtitle}"`,
-    fontSize: 44,
+    font: `500 ${subtitleSize}px "${fonts.subtitle}"`,
+    fontSize: subtitleSize,
     color: accentColor,
     align: "left",
     maxLines: 2,
@@ -148,15 +183,15 @@ async function renderSlideToBlob(
   });
 
   // ── Body ─────────────────────────────────────────────────────────────────
-  if (slide.body && textY < SLIDE_SIZE - 120) {
+  if (slide.body) {
     textY += 16;
     drawStyledTextBlock(ctx, {
       text: slide.body,
       x: textX,
       y: textY,
       maxWidth: maxTextWidth,
-      font: `400 36px "${fonts.body}"`,
-      fontSize: 36,
+      font: `400 ${bodySize}px "${fonts.body}"`,
+      fontSize: bodySize,
       color: "rgba(255,255,255,0.85)",
       align: "left",
       maxLines: 3,
@@ -232,14 +267,20 @@ async function renderStoryToBlob(
   const titleStyle = { shadow: true };
   let textY = STORY_HEIGHT * 0.62;
 
+  // ── Adaptive font scaling (prevents body from being cut off) ─────────────
+  const available = STORY_HEIGHT * 0.38 - 100; // = 628px
+  const scale = computeLayoutScale(ctx, slide, fonts, maxTextWidth, 100, 0, 52, available);
+  const titleSize = Math.round(100 * scale);
+  const bodySize = Math.round(52 * scale);
+
   // ── Title ────────────────────────────────────────────────────────────────
   textY = drawStyledTextBlock(ctx, {
     text: slide.title,
     x: textX,
     y: textY,
     maxWidth: maxTextWidth,
-    font: `bold 100px "${fonts.title}"`,
-    fontSize: 100,
+    font: `bold ${titleSize}px "${fonts.title}"`,
+    fontSize: titleSize,
     color: "#ffffff",
     align: "center",
     maxLines: 4,
@@ -249,15 +290,15 @@ async function renderStoryToBlob(
   });
 
   // ── Body ─────────────────────────────────────────────────────────────────
-  if (slide.body && textY < STORY_HEIGHT - 180) {
+  if (slide.body) {
     textY += 24;
     drawStyledTextBlock(ctx, {
       text: slide.body,
       x: textX,
       y: textY,
       maxWidth: maxTextWidth,
-      font: `400 52px "${fonts.body}"`,
-      fontSize: 52,
+      font: `400 ${bodySize}px "${fonts.body}"`,
+      fontSize: bodySize,
       color: "rgba(255,255,255,0.85)",
       align: "center",
       maxLines: 3,
@@ -386,13 +427,14 @@ export default function CarouselPage() {
   const [activeFormat, setActiveFormat] = useState<"carousel" | "stories" | "reels">("carousel");
 
   // Model selector
-  const [aiModel, setAiModel] = useState("gemini-2.5-flash");
+  const [aiModel, setAiModel] = useState("gemini-3-flash-preview");
 
   // Generation state
   const [isGenerating, setIsGenerating] = useState(false);
   const [result, setResult] = useState<CarouselGenerateResponse | null>(null);
   const [previewIndex, setPreviewIndex] = useState(0);
   const [previewBlobs, setPreviewBlobs] = useState<string[]>([]); // object URLs
+  const [previewBlobData, setPreviewBlobData] = useState<Blob[]>([]); // raw blobs for ZIP
   const [isRendering, setIsRendering] = useState(false);
   const [copied, setCopied] = useState(false);
   const [refineFeedback, setRefineFeedback] = useState("");
@@ -493,6 +535,7 @@ export default function CarouselPage() {
   const [isGeneratingStory, setIsGeneratingStory] = useState(false);
   const [storyResult, setStoryResult] = useState<CarouselGenerateResponse | null>(null);
   const [storyPreviewBlobs, setStoryPreviewBlobs] = useState<string[]>([]);
+  const [storyBlobData, setStoryBlobData] = useState<Blob[]>([]); // raw blobs for ZIP
   const [storyPreviewIndex, setStoryPreviewIndex] = useState(0);
   const [isRenderingStory, setIsRenderingStory] = useState(false);
   const [storyCopied, setStoryCopied] = useState(false);
@@ -553,6 +596,7 @@ export default function CarouselPage() {
     setIsGenerating(true);
     setResult(null);
     setPreviewBlobs([]);
+    setPreviewBlobData([]);
     setPreviewIndex(0);
 
     const previousCaptions =
@@ -598,6 +642,7 @@ export default function CarouselPage() {
 
         const renderer = slideFormat === "story" ? renderStoryToBlob : renderSlideToBlob;
         const blobs: string[] = [];
+        const blobData: Blob[] = [];
         for (const [i, slide] of json.slides.entries()) {
           const blob = await renderer(
             slide,
@@ -608,8 +653,10 @@ export default function CarouselPage() {
             i,
             json.slides.length
           );
+          blobData.push(blob);
           blobs.push(URL.createObjectURL(blob));
         }
+        setPreviewBlobData(blobData);
         setPreviewBlobs(blobs);
         setIsRendering(false);
       }
@@ -632,7 +679,7 @@ export default function CarouselPage() {
   };
 
   const downloadAll = async () => {
-    if (previewBlobs.length === 0) return;
+    if (previewBlobData.length === 0) return;
     const JSZip = (await import("jszip")).default;
     const zip = new JSZip();
     const slug =
@@ -642,13 +689,9 @@ export default function CarouselPage() {
         .replace(/[^a-z0-9]+/gi, "-")
         .toLowerCase() || "carousel";
     const ts = new Date().toISOString().replace(/[-T:]/g, "").slice(0, 14);
-    await Promise.all(
-      previewBlobs.map(async (url, i) => {
-        const res = await fetch(url);
-        const blob = await res.blob();
-        zip.file(`${slug}-slide-${i + 1}.png`, blob);
-      })
-    );
+    previewBlobData.forEach((blob, i) => {
+      zip.file(`${slug}-slide-${i + 1}.png`, blob);
+    });
     const content = await zip.generateAsync({ type: "blob" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(content);
@@ -679,6 +722,7 @@ export default function CarouselPage() {
         setRefineFeedback("");
         // Re-render slides with the updated content
         setPreviewBlobs([]);
+        setPreviewBlobData([]);
         setIsRendering(true);
         try {
           await loadFont(fonts.title);
@@ -686,6 +730,7 @@ export default function CarouselPage() {
           await loadFont(fonts.body);
           const renderer = slideFormat === "story" ? renderStoryToBlob : renderSlideToBlob;
           const blobs: string[] = [];
+          const blobData: Blob[] = [];
           for (let i = 0; i < json.slides.length; i++) {
             const blob = await renderer(
               json.slides[i]!,
@@ -696,8 +741,10 @@ export default function CarouselPage() {
               i,
               json.slides.length
             );
+            blobData.push(blob);
             blobs.push(URL.createObjectURL(blob));
           }
+          setPreviewBlobData(blobData);
           setPreviewBlobs(blobs);
         } finally {
           setIsRendering(false);
@@ -727,6 +774,7 @@ export default function CarouselPage() {
     setIsGeneratingStory(true);
     setStoryResult(null);
     setStoryPreviewBlobs([]);
+    setStoryBlobData([]);
     setStoryPreviewIndex(0);
 
     const previousCaptions =
@@ -763,6 +811,7 @@ export default function CarouselPage() {
         await loadFont(fonts.body);
 
         const blobs: string[] = [];
+        const blobData: Blob[] = [];
         for (const [i, slide] of json.slides.entries()) {
           const blob = await renderStoryToBlob(
             slide,
@@ -773,8 +822,10 @@ export default function CarouselPage() {
             i,
             json.slides.length
           );
+          blobData.push(blob);
           blobs.push(URL.createObjectURL(blob));
         }
+        setStoryBlobData(blobData);
         setStoryPreviewBlobs(blobs);
         setIsRenderingStory(false);
       }
@@ -796,7 +847,7 @@ export default function CarouselPage() {
   };
 
   const downloadAllStories = async () => {
-    if (storyPreviewBlobs.length === 0) return;
+    if (storyBlobData.length === 0) return;
     const JSZip = (await import("jszip")).default;
     const zip = new JSZip();
     const slug =
@@ -806,13 +857,9 @@ export default function CarouselPage() {
         .replace(/[^a-z0-9]+/gi, "-")
         .toLowerCase() || "stories";
     const ts = new Date().toISOString().replace(/[-T:]/g, "").slice(0, 14);
-    await Promise.all(
-      storyPreviewBlobs.map(async (url, i) => {
-        const res = await fetch(url);
-        const blob = await res.blob();
-        zip.file(`${slug}-story-${i + 1}.png`, blob);
-      })
-    );
+    storyBlobData.forEach((blob, i) => {
+      zip.file(`${slug}-story-${i + 1}.png`, blob);
+    });
     const content = await zip.generateAsync({ type: "blob" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(content);
@@ -987,7 +1034,7 @@ export default function CarouselPage() {
           <p className="mt-1 text-sm text-muted-foreground">{t("carousel.subtitle")}</p>
         </div>
         {/* ── Format switcher ── */}
-        <div className="mb-6 flex w-fit gap-1 rounded-lg bg-muted p-1">
+        <div className="mb-6 flex w-full flex-wrap gap-1 rounded-lg bg-muted p-1 sm:w-fit">
           {(["carousel", "stories", "reels"] as const).map((fmt) => (
             <button
               key={fmt}
@@ -1363,7 +1410,7 @@ export default function CarouselPage() {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {/* Fonts */}
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                     {(["title", "subtitle", "body"] as const).map((role) => (
                       <div key={role}>
                         <label className="mb-1 block text-[10px] uppercase tracking-wide text-muted-foreground">
@@ -1437,11 +1484,16 @@ export default function CarouselPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                     {(
                       [
-                        ["gemini-2.5-flash", t("model.flash25.label"), t("model.flash25.desc")],
-                        ["gemini-2.5-pro", t("model.pro25.label"), t("model.pro25.desc")],
+                        ["gemini-3-flash-preview", t("model.flash3.label"), t("model.flash3.desc")],
+                        [
+                          "gemini-3.1-flash-preview",
+                          t("model.flash31.label"),
+                          t("model.flash31.desc"),
+                        ],
+                        ["gemini-3.1-pro-preview", t("model.pro31.label"), t("model.pro31.desc")],
                       ] as const
                     ).map(([id, label, desc]) => (
                       <button
@@ -2223,11 +2275,16 @@ export default function CarouselPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                     {(
                       [
-                        ["gemini-2.5-flash", t("model.flash25.label"), t("model.flash25.desc")],
-                        ["gemini-2.5-pro", t("model.pro25.label"), t("model.pro25.desc")],
+                        ["gemini-3-flash-preview", t("model.flash3.label"), t("model.flash3.desc")],
+                        [
+                          "gemini-3.1-flash-preview",
+                          t("model.flash31.label"),
+                          t("model.flash31.desc"),
+                        ],
+                        ["gemini-3.1-pro-preview", t("model.pro31.label"), t("model.pro31.desc")],
                       ] as const
                     ).map(([id, label, desc]) => (
                       <button
